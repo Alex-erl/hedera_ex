@@ -20,6 +20,13 @@ defmodule Hedera.Proto do
   @spec varint_field(non_neg_integer(), non_neg_integer()) :: binary()
   def varint_field(field, value), do: tag(field, 0) <> varint(value)
 
+  @doc "Encode a signed `sint64` (ZigZag) field — used e.g. for transfer amounts."
+  @spec sint64_field(non_neg_integer(), integer()) :: binary()
+  def sint64_field(field, value), do: tag(field, 0) <> varint(zigzag(value))
+
+  defp zigzag(n) when n >= 0, do: n * 2
+  defp zigzag(n), do: -n * 2 - 1
+
   @doc "Encode a length-delimited (wire type 2) field: bytes, strings, or sub-messages."
   @spec bytes_field(non_neg_integer(), binary()) :: binary()
   def bytes_field(field, bytes), do: tag(field, 2) <> varint(byte_size(bytes)) <> bytes

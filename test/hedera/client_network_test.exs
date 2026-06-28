@@ -34,4 +34,25 @@ defmodule Hedera.ClientNetworkTest do
 
     assert is_integer(receipt.topic_sequence_number)
   end
+
+  test "transfers 1 tinybar to the network fee account (precheck OK + SUCCESS receipt)" do
+    operator_id = AccountId.parse(System.fetch_env!("OPERATOR_ID"))
+    operator_key = PrivateKey.from_string_ecdsa(System.fetch_env!("OPERATOR_KEY"))
+    client = Client.testnet(operator_id, operator_key)
+
+    # 0.0.98 is the network fee-collection account — a valid recipient on every
+    # network. Balanced transfer: -1 tinybar from operator, +1 to 0.0.98.
+    fee_account = AccountId.parse("0.0.98")
+
+    assert {:ok, result} =
+             Client.transfer_hbar(client, [{operator_id, -1}, {fee_account, 1}])
+
+    assert result.precheck_code == 0,
+           "node pre-check returned #{result.precheck_code} (expected 0 = OK)"
+
+    assert {:ok, receipt} = Client.transaction_receipt(client, result.transaction_id)
+
+    assert Hedera.Receipt.success?(receipt),
+           "receipt status #{receipt.status} (expected 22 = SUCCESS)"
+  end
 end

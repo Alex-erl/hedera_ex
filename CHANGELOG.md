@@ -34,4 +34,14 @@ The cryptographic and encoding foundation, fully unit-tested offline:
   `Hedera.Client` rebuilds + re-signs per target node and retries the next node on transient
   (BUSY) pre-checks or transport errors.
 
-Next: HTS / crypto transfers, protoc-generated messages, hex.pm release.
+### Crypto Service (HBAR transfers)
+
+- **Transfers** — `Hedera.Transaction.crypto_transfer/1` and `Hedera.Client.transfer_hbar/3`
+  build and sign a `cryptoTransfer` of HBAR between accounts. Amounts are encoded as protobuf
+  `sint64` (ZigZag, via `Hedera.Proto.sint64_field/2`); debits are negative, credits positive,
+  and must net to zero.
+- **Validated live**: a natively-built transfer is accepted by a testnet node (pre-check `OK`)
+  and reaches a `SUCCESS` receipt, confirming the `cryptoTransfer` field numbers and the
+  `TransferList` / `AccountAmount` (sint64) encoding end-to-end.
+
+Next: HTS (token create / mint / associate / transfer), protoc-generated messages, hex.pm release.

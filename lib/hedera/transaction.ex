@@ -24,6 +24,7 @@ defmodule Hedera.Transaction do
   @f_valid_duration 4
   @f_memo 6
   # data oneof
+  @f_crypto_transfer 14
   @f_consensus_create_topic 24
   @f_consensus_submit_message 27
 
@@ -54,6 +55,33 @@ defmodule Hedera.Transaction do
   def create_topic(opts) do
     inner = Proto.maybe_bytes_field(1, opts[:memo])
     build(opts, @f_consensus_create_topic, inner)
+  end
+
+  @doc """
+  Build + sign a `cryptoTransfer` (HBAR) transaction.
+
+  Required opts: the standard operator/node options plus `:transfers`, a list of
+  `{%AccountId{}, amount_in_tinybars}` pairs. Debits are negative, credits are
+  positive, and the amounts MUST net to zero across all accounts (Hedera rejects
+  an unbalanced transfer). Optional: `:memo`, `:max_fee`.
+
+  Amounts are encoded as protobuf `sint64` (ZigZag), matching `AccountAmount`.
+  """
+  @spec crypto_transfer(keyword()) :: build_result()
+  def crypto_transfer(opts) do
+    transfers = fetch!(opts, :transfers)
+
+    # TransferList { repeated AccountAmount accountAmounts = 1 }
+    account_amounts =
+      Enum.map_join(transfers, "", fn {%AccountId{} = account, amount} ->
+        # AccountAmount { accountID = 1, amount = 2 (sint64) }
+        aa = Proto.bytes_field(1, AccountId.to_proto(account)) <> Proto.sint64_field(2, amount)
+        Proto.bytes_field(1, aa)
+      end)
+
+    # CryptoTransferTransactionBody { TransferList transfers = 1 }
+    inner = Proto.bytes_field(1, account_amounts)
+    build(opts, @f_crypto_transfer, inner)
   end
 
   # --- internals --------------------------------------------------------------

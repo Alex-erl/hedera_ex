@@ -22,6 +22,7 @@ defmodule Hedera.Client do
 
   @submit_path "/proto.ConsensusService/submitMessage"
   @create_path "/proto.ConsensusService/createTopic"
+  @transfer_path "/proto.CryptoService/cryptoTransfer"
   @receipt_path "/proto.CryptoService/getTransactionReceipts"
 
   @f_receipt_query 14
@@ -74,6 +75,29 @@ defmodule Hedera.Client do
           operator_id: client.operator_id,
           operator_key: client.operator_key,
           node_account_id: node.account_id
+        ] ++ opts
+      )
+    end)
+  end
+
+  @doc """
+  Transfer HBAR between accounts (retries across nodes on transient errors).
+
+  `transfers` is a list of `{%AccountId{}, amount_in_tinybars}` pairs; debits are
+  negative, credits positive, and they must net to zero.
+
+      Hedera.Client.transfer_hbar(client, [{from, -1}, {to, 1}])
+  """
+  @spec transfer_hbar(t(), [{AccountId.t(), integer()}], keyword()) ::
+          {:ok, result()} | {:error, term()}
+  def transfer_hbar(%__MODULE__{} = client, transfers, opts \\ []) when is_list(transfers) do
+    execute(client, @transfer_path, fn node ->
+      Transaction.crypto_transfer(
+        [
+          operator_id: client.operator_id,
+          operator_key: client.operator_key,
+          node_account_id: node.account_id,
+          transfers: transfers
         ] ++ opts
       )
     end)
