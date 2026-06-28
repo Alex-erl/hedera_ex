@@ -21,4 +21,11 @@ The cryptographic and encoding foundation, fully unit-tested offline:
   Hedera **testnet** node (pre-check `OK`), confirming protobuf field numbers and signing
   end-to-end. (`mix test --include network`.)
 
-Next: receipt queries (sequence number / topic id), mirror-node helpers, HTS.
+### Receipts & mirror node
+
+- **Receipts** — `Hedera.Client.transaction_receipt/3` polls the free gRPC
+  `getTransactionReceipts`; `Hedera.Receipt` parses status, topic sequence number and running
+  hash. Verified live (submit → SUCCESS receipt with a sequence number).
+- **Mirror node** — `Hedera.MirrorNode` REST reads (topic messages, transactions); adds `jason`.
+
+Next: HTS / crypto transfers, multi-node retry, protoc-generated messages.

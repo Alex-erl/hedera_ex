@@ -25,5 +25,13 @@ defmodule Hedera.ClientNetworkTest do
            "node pre-check returned #{result.precheck_code} (expected 0 = OK)"
 
     assert result.ok?
+
+    # fetch the consensus receipt (sequence number) via gRPC getTransactionReceipts
+    assert {:ok, receipt} = Client.transaction_receipt(client, result.transaction_id)
+
+    assert Hedera.Receipt.success?(receipt),
+           "receipt status #{receipt.status} (expected 22 = SUCCESS)"
+
+    assert is_integer(receipt.topic_sequence_number)
   end
 end

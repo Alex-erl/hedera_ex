@@ -24,7 +24,9 @@ pure, tested Elixir.
 | Identifiers | `Hedera.AccountId`, `Hedera.TopicId`, `Hedera.Timestamp`, `Hedera.TransactionId`, `Hedera.Duration` | Parse / format / protobuf-encode. |
 | Protobuf | `Hedera.Proto` | Minimal proto3 wire encoder + decoder. |
 | Transactions | `Hedera.Transaction` | Encode + sign `TransactionBody` → `SignedTransaction` → `Transaction` for HCS create / submit. |
-| gRPC | `Hedera.Grpc`, `Hedera.Client`, `Hedera.Network` | Unary calls over HTTP/2 (h2c) to consensus nodes; **HCS message submit verified live on testnet**. |
+| gRPC | `Hedera.Grpc`, `Hedera.Client`, `Hedera.Network` | Unary calls over HTTP/2 (h2c) to consensus nodes; **HCS submit verified live on testnet**. |
+| Receipts | `Hedera.Client.transaction_receipt/3`, `Hedera.Receipt` | Free gRPC `getTransactionReceipts` poll → status + topic sequence number + running hash. **Verified live.** |
+| Mirror node | `Hedera.MirrorNode` | REST reads (topic messages, transactions). |
 
 ```elixir
 alias Hedera.{AccountId, Client, PrivateKey, TopicId}
@@ -50,10 +52,11 @@ OPERATOR_ID=0.0.x OPERATOR_KEY=0x... mix test --include network
 - [x] Keccak-256, Ed25519 + ECDSA secp256k1 (Hedera conventions), identifiers, protobuf primitives
 - [x] `TransactionBody` + `SignedTransaction` + `Transaction` encoding (HCS create / submit)
 - [x] gRPC client over HTTP/2 (`submitMessage`, `createTopic`) — validated live on testnet
-- [ ] Receipt queries (sequence number / new topic id) via gRPC or mirror node
-- [ ] Mirror-node REST helpers
-- [ ] Token Service (HTS), account create/transfer
+- [x] Receipt queries (status + sequence number) via gRPC `getTransactionReceipts` — verified live
+- [x] Mirror-node REST helpers (`Hedera.MirrorNode`)
+- [ ] Token Service (HTS), account create/transfer, crypto transfer
 - [ ] protoc-generated message modules from the canonical Hedera `.proto` files
+- [ ] node address-book rotation / multi-node retry
 
 ### Why field numbers aren't guessed
 

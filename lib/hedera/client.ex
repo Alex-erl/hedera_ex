@@ -8,10 +8,25 @@ defmodule Hedera.Client do
       {:ok, %{precheck_code: 0}} = Hedera.Client.submit_message(client, topic_id, "payload")
   """
 
-  alias Hedera.{AccountId, Grpc, Network, PrivateKey, Proto, TopicId, Transaction, TransactionId}
+  alias Hedera.{
+    AccountId,
+    Grpc,
+    Network,
+    PrivateKey,
+    Proto,
+    Receipt,
+    TopicId,
+    Transaction,
+    TransactionId
+  }
 
   @submit_path "/proto.ConsensusService/submitMessage"
   @create_path "/proto.ConsensusService/createTopic"
+  @receipt_path "/proto.CryptoService/getTransactionReceipts"
+
+  # Query.transactionGetReceipt / Response.transactionGetReceipt
+  @f_receipt_query 14
+  @f_receipt_response 14
 
   @enforce_keys [:operator_id, :operator_key, :node]
   defstruct [:operator_id, :operator_key, :node]
@@ -58,6 +73,57 @@ defmodule Hedera.Client do
       ] ++ opts
     )
     |> execute(client, @create_path)
+  end
+
+  @doc """
+  Fetch a transaction's receipt (the consensus outcome), polling the node until
+  it is final. Receipt queries are free, so no payment is attached.
+  """
+  @spec transaction_receipt(t(), TransactionId.t(), keyword()) ::
+          {:ok, Receipt.t()} | {:error, term()}
+  def transaction_receipt(%__MODULE__{} = client, %TransactionId{} = tx_id, opts \\ []) do
+    attempts = Keyword.get(opts, :attempts, 8)
+    delay = Keyword.get(opts, :delay_ms, 2_000)
+    poll_receipt(client, tx_id, attempts, delay)
+  end
+
+  defp poll_receipt(_client, _tx_id, 0, _delay), do: {:error, :receipt_not_available}
+
+  defp poll_receipt(client, tx_id, attempts, delay) do
+    case query_receipt(client, tx_id) do
+      {:ok, receipt} ->
+        if Receipt.final?(receipt) do
+          {:ok, receipt}
+        else
+          Process.sleep(delay)
+          poll_receipt(client, tx_id, attempts - 1, delay)
+        end
+
+      {:error, _transient} ->
+        Process.sleep(delay)
+        poll_receipt(client, tx_id, attempts - 1, delay)
+    end
+  end
+
+  defp query_receipt(client, tx_id) do
+    # TransactionGetReceiptQuery { header = 1 (empty: free, ANSWER_ONLY), transactionID = 2 }
+    receipt_query =
+      Proto.bytes_field(1, <<>>) <> Proto.bytes_field(2, TransactionId.to_proto(tx_id))
+
+    query = Proto.bytes_field(@f_receipt_query, receipt_query)
+
+    with {:ok, response} <- Grpc.unary(client.node.host, client.node.port, @receipt_path, query) do
+      inner = Proto.decode(Proto.field(Proto.decode(response), @f_receipt_response) || <<>>)
+
+      case Proto.field(inner, 2) do
+        nil ->
+          precheck = Proto.field(Proto.decode(Proto.field(inner, 1) || <<>>), 1) || 0
+          {:error, {:no_receipt, precheck}}
+
+        receipt_bytes ->
+          {:ok, Receipt.parse(receipt_bytes)}
+      end
+    end
   end
 
   defp execute(%{transaction: tx, transaction_id: tx_id}, client, path) do

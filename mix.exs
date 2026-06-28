@@ -20,12 +20,13 @@ defmodule Hedera.MixProject do
   end
 
   def application do
-    [extra_applications: [:logger, :crypto, :public_key]]
+    [extra_applications: [:logger, :crypto, :public_key, :inets, :ssl]]
   end
 
   defp deps do
     [
       {:mint, "~> 1.6"},
+      {:jason, "~> 1.4"},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false}
     ]
   end
