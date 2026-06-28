@@ -5,15 +5,22 @@ defmodule Hedera.Network do
 
   @type node_info :: %{account_id: AccountId.t(), host: binary(), port: :inet.port_number()}
 
-  @doc "A default testnet consensus node (account 0.0.3)."
-  @spec default_testnet_node() :: node_info()
-  def default_testnet_node do
-    %{account_id: AccountId.parse("0.0.3"), host: "0.testnet.hedera.com", port: 50_211}
+  @testnet [
+    {"0.0.3", "0.testnet.hedera.com"},
+    {"0.0.4", "1.testnet.hedera.com"},
+    {"0.0.5", "2.testnet.hedera.com"},
+    {"0.0.6", "3.testnet.hedera.com"}
+  ]
+
+  @doc "The testnet consensus-node address book (used for cross-node retry)."
+  @spec testnet_nodes() :: [node_info()]
+  def testnet_nodes do
+    Enum.map(@testnet, fn {account, host} ->
+      %{account_id: AccountId.parse(account), host: host, port: 50_211}
+    end)
   end
 
-  @doc "A default mainnet consensus node (account 0.0.3)."
-  @spec default_mainnet_node() :: node_info()
-  def default_mainnet_node do
-    %{account_id: AccountId.parse("0.0.3"), host: "35.237.200.180", port: 50_211}
-  end
+  @doc "A single default testnet node (account 0.0.3)."
+  @spec default_testnet_node() :: node_info()
+  def default_testnet_node, do: hd(testnet_nodes())
 end

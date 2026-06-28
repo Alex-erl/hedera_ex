@@ -54,9 +54,10 @@ OPERATOR_ID=0.0.x OPERATOR_KEY=0x... mix test --include network
 - [x] gRPC client over HTTP/2 (`submitMessage`, `createTopic`) — validated live on testnet
 - [x] Receipt queries (status + sequence number) via gRPC `getTransactionReceipts` — verified live
 - [x] Mirror-node REST helpers (`Hedera.MirrorNode`)
+- [x] node address book + cross-node retry on transient (BUSY) failures
 - [ ] Token Service (HTS), account create/transfer, crypto transfer
 - [ ] protoc-generated message modules from the canonical Hedera `.proto` files
-- [ ] node address-book rotation / multi-node retry
+- [ ] hex.pm release
 
 ### Why field numbers aren't guessed
 

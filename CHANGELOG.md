@@ -28,4 +28,10 @@ The cryptographic and encoding foundation, fully unit-tested offline:
   hash. Verified live (submit → SUCCESS receipt with a sequence number).
 - **Mirror node** — `Hedera.MirrorNode` REST reads (topic messages, transactions); adds `jason`.
 
-Next: HTS / crypto transfers, multi-node retry, protoc-generated messages.
+### Reliability
+
+- **Address book + retry** — `Hedera.Network.testnet_nodes/0` lists multiple consensus nodes;
+  `Hedera.Client` rebuilds + re-signs per target node and retries the next node on transient
+  (BUSY) pre-checks or transport errors.
+
+Next: HTS / crypto transfers, protoc-generated messages, hex.pm release.

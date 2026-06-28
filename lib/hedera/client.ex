@@ -1,8 +1,8 @@
 defmodule Hedera.Client do
   @moduledoc """
-  High-level entry point: holds the operator identity and a target node, builds
-  and submits Consensus Service transactions, and reports the node's pre-check
-  result.
+  High-level entry point: holds the operator identity and the network's node
+  address book, builds and submits Consensus Service transactions, retries
+  across nodes on transient failures, and fetches receipts.
 
       client = Hedera.Client.testnet(operator_id, operator_key)
       {:ok, %{precheck_code: 0}} = Hedera.Client.submit_message(client, topic_id, "payload")
@@ -24,95 +24,120 @@ defmodule Hedera.Client do
   @create_path "/proto.ConsensusService/createTopic"
   @receipt_path "/proto.CryptoService/getTransactionReceipts"
 
-  # Query.transactionGetReceipt / Response.transactionGetReceipt
   @f_receipt_query 14
   @f_receipt_response 14
 
-  @enforce_keys [:operator_id, :operator_key, :node]
-  defstruct [:operator_id, :operator_key, :node]
+  # ResponseCodeEnum.BUSY — worth retrying on another node.
+  @busy 11
+
+  @enforce_keys [:operator_id, :operator_key, :nodes]
+  defstruct [:operator_id, :operator_key, :nodes]
 
   @type t :: %__MODULE__{
           operator_id: AccountId.t(),
           operator_key: PrivateKey.t(),
-          node: Network.node_info()
+          nodes: [Network.node_info()]
         }
 
   @type result :: %{precheck_code: integer(), ok?: boolean(), transaction_id: TransactionId.t()}
 
-  @doc "Build a testnet client for the given operator."
+  @doc "Build a testnet client (with the full testnet node address book)."
   @spec testnet(AccountId.t(), PrivateKey.t()) :: t()
   def testnet(%AccountId{} = operator_id, %PrivateKey{} = operator_key) do
     %__MODULE__{
       operator_id: operator_id,
       operator_key: operator_key,
-      node: Network.default_testnet_node()
+      nodes: Network.testnet_nodes()
     }
   end
 
-  @doc "Submit a message to an HCS topic."
+  @doc "Submit a message to an HCS topic (retries across nodes on transient errors)."
   @spec submit_message(t(), TopicId.t(), binary()) :: {:ok, result()} | {:error, term()}
   def submit_message(%__MODULE__{} = client, %TopicId{} = topic_id, message) do
-    Transaction.submit_message(
-      operator_id: client.operator_id,
-      operator_key: client.operator_key,
-      node_account_id: client.node.account_id,
-      topic_id: topic_id,
-      message: message
-    )
-    |> execute(client, @submit_path)
+    execute(client, @submit_path, fn node ->
+      Transaction.submit_message(
+        operator_id: client.operator_id,
+        operator_key: client.operator_key,
+        node_account_id: node.account_id,
+        topic_id: topic_id,
+        message: message
+      )
+    end)
   end
 
   @doc "Create a new HCS topic (open, unless `:memo` given)."
   @spec create_topic(t(), keyword()) :: {:ok, result()} | {:error, term()}
   def create_topic(%__MODULE__{} = client, opts \\ []) do
-    Transaction.create_topic(
-      [
-        operator_id: client.operator_id,
-        operator_key: client.operator_key,
-        node_account_id: client.node.account_id
-      ] ++ opts
-    )
-    |> execute(client, @create_path)
+    execute(client, @create_path, fn node ->
+      Transaction.create_topic(
+        [
+          operator_id: client.operator_id,
+          operator_key: client.operator_key,
+          node_account_id: node.account_id
+        ] ++ opts
+      )
+    end)
   end
 
-  @doc """
-  Fetch a transaction's receipt (the consensus outcome), polling the node until
-  it is final. Receipt queries are free, so no payment is attached.
-  """
+  @doc "Fetch a transaction's consensus receipt, polling until final (free query)."
   @spec transaction_receipt(t(), TransactionId.t(), keyword()) ::
           {:ok, Receipt.t()} | {:error, term()}
-  def transaction_receipt(%__MODULE__{} = client, %TransactionId{} = tx_id, opts \\ []) do
+  def transaction_receipt(%__MODULE__{nodes: [node | _]}, %TransactionId{} = tx_id, opts \\ []) do
     attempts = Keyword.get(opts, :attempts, 8)
     delay = Keyword.get(opts, :delay_ms, 2_000)
-    poll_receipt(client, tx_id, attempts, delay)
+    poll_receipt(node, tx_id, attempts, delay)
   end
 
-  defp poll_receipt(_client, _tx_id, 0, _delay), do: {:error, :receipt_not_available}
+  # --- execution with cross-node retry ----------------------------------------
 
-  defp poll_receipt(client, tx_id, attempts, delay) do
-    case query_receipt(client, tx_id) do
+  defp execute(%__MODULE__{nodes: nodes}, path, build_fun) do
+    attempt(nodes, path, build_fun, {:error, :no_nodes})
+  end
+
+  defp attempt([], _path, _build_fun, last_error), do: last_error
+
+  defp attempt([node | rest], path, build_fun, _last) do
+    %{transaction: tx, transaction_id: tx_id} = build_fun.(node)
+
+    case Grpc.unary(node.host, node.port, path, tx) do
+      {:ok, response} ->
+        code = Proto.field(Proto.decode(response), 1) || 0
+        result = {:ok, %{precheck_code: code, ok?: code == 0, transaction_id: tx_id}}
+        # success or a permanent rejection → stop; transient (BUSY) → next node
+        if code == 0 or code != @busy, do: result, else: attempt(rest, path, build_fun, result)
+
+      {:error, reason} ->
+        attempt(rest, path, build_fun, {:error, reason})
+    end
+  end
+
+  # --- receipt polling --------------------------------------------------------
+
+  defp poll_receipt(_node, _tx_id, 0, _delay), do: {:error, :receipt_not_available}
+
+  defp poll_receipt(node, tx_id, attempts, delay) do
+    case query_receipt(node, tx_id) do
       {:ok, receipt} ->
         if Receipt.final?(receipt) do
           {:ok, receipt}
         else
           Process.sleep(delay)
-          poll_receipt(client, tx_id, attempts - 1, delay)
+          poll_receipt(node, tx_id, attempts - 1, delay)
         end
 
       {:error, _transient} ->
         Process.sleep(delay)
-        poll_receipt(client, tx_id, attempts - 1, delay)
+        poll_receipt(node, tx_id, attempts - 1, delay)
     end
   end
 
-  defp query_receipt(client, tx_id) do
-    # TransactionGetReceiptQuery { header = 1 (empty: free, ANSWER_ONLY), transactionID = 2 }
+  defp query_receipt(node, tx_id) do
     receipt_query =
       Proto.bytes_field(1, <<>>) <> Proto.bytes_field(2, TransactionId.to_proto(tx_id))
 
     query = Proto.bytes_field(@f_receipt_query, receipt_query)
 
-    with {:ok, response} <- Grpc.unary(client.node.host, client.node.port, @receipt_path, query) do
+    with {:ok, response} <- Grpc.unary(node.host, node.port, @receipt_path, query) do
       inner = Proto.decode(Proto.field(Proto.decode(response), @f_receipt_response) || <<>>)
 
       case Proto.field(inner, 2) do
@@ -123,18 +148,6 @@ defmodule Hedera.Client do
         receipt_bytes ->
           {:ok, Receipt.parse(receipt_bytes)}
       end
-    end
-  end
-
-  defp execute(%{transaction: tx, transaction_id: tx_id}, client, path) do
-    case Grpc.unary(client.node.host, client.node.port, path, tx) do
-      {:ok, response} ->
-        # TransactionResponse { nodeTransactionPrecheckCode = 1 }
-        code = Proto.field(Proto.decode(response), 1) || 0
-        {:ok, %{precheck_code: code, ok?: code == 0, transaction_id: tx_id}}
-
-      {:error, reason} ->
-        {:error, reason}
     end
   end
 end
