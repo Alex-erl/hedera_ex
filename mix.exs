@@ -2,7 +2,7 @@ defmodule Hedera.MixProject do
   use Mix.Project
 
   @version "0.1.0"
-  @source_url "https://github.com/asv/hedera_ex"
+  @source_url "https://github.com/Alex-erl/hedera_ex"
 
   def project do
     [
@@ -33,7 +33,7 @@ defmodule Hedera.MixProject do
 
   defp description do
     "A native Elixir SDK for the Hedera network: keys (Ed25519 / ECDSA secp256k1), " <>
-      "identifiers, protobuf encoding, and Consensus Service support."
+      "identifiers, protobuf encoding, gRPC, and Consensus + Crypto Service support."
   end
 
   defp package do
