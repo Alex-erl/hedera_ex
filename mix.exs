@@ -25,6 +25,7 @@ defmodule Hedera.MixProject do
 
   defp deps do
     [
+      {:mint, "~> 1.6"},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false}
     ]
   end

@@ -1,0 +1,29 @@
+defmodule Hedera.ClientNetworkTest do
+  @moduledoc """
+  Live testnet integration (excluded by default). Builds, signs and submits a
+  real consensus message over gRPC; a pre-check code of 0 means the node
+  accepted it (signature valid, body well-formed, fee sufficient) — which
+  validates the protobuf field numbers and signing end-to-end.
+  """
+  use ExUnit.Case, async: false
+
+  alias Hedera.{AccountId, Client, PrivateKey, TopicId}
+
+  @moduletag :network
+  @topic "0.0.9339331"
+
+  test "submits a message to a testnet HCS topic (precheck OK)" do
+    operator_id = AccountId.parse(System.fetch_env!("OPERATOR_ID"))
+    operator_key = PrivateKey.from_string_ecdsa(System.fetch_env!("OPERATOR_KEY"))
+    client = Client.testnet(operator_id, operator_key)
+
+    message = "hedera_ex native submit ##{:rand.uniform(1_000_000_000)}"
+
+    assert {:ok, result} = Client.submit_message(client, TopicId.parse(@topic), message)
+
+    assert result.precheck_code == 0,
+           "node pre-check returned #{result.precheck_code} (expected 0 = OK)"
+
+    assert result.ok?
+  end
+end

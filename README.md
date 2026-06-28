@@ -4,41 +4,53 @@ A **native Elixir SDK for the [Hedera](https://hedera.com) network** — keys, i
 protobuf encoding, and (incrementally) the Consensus Service. No NIFs for the core crypto;
 no Java/Python bridge.
 
-> **Status: alpha.** The cryptographic and encoding foundation is implemented and unit-tested
-> offline (see below). Transaction assembly and the gRPC execution layer are the next
-> milestones and require validation against a live testnet node before they can be trusted.
+> **Status: alpha — but it talks to the network.** The crypto/encoding foundation is unit-tested
+> offline, and **building, signing and submitting a Consensus Service message has been validated
+> against the live Hedera testnet** (the node accepts the natively-signed transaction). APIs may
+> still change; receipt queries and broader services are next.
 
 It exists because the Elixir ecosystem has no maintained Hedera SDK — projects that need
 on-chain anchoring from the BEAM currently shell out to the Python/Java SDKs. This library
-brings the hard parts (Hedera's exact signing conventions) into pure, tested Elixir.
+brings the hard parts (Hedera's exact signing conventions and protobuf/gRPC wire format) into
+pure, tested Elixir.
 
-## What works today (tested, offline)
+## What works today
 
 | Area | Module(s) | Notes |
 |------|-----------|-------|
 | Keccak-256 | `Hedera.Crypto.Keccak` | Pure Elixir; the Ethereum/Hedera padding (not SHA3). Matches known vectors. |
 | Ed25519 keys | `Hedera.PrivateKey`, `Hedera.PublicKey` | Generate, sign, verify, hex round-trip. |
 | ECDSA secp256k1 keys | same | Hedera convention: **Keccak-256 prehash**, canonical **low-S** 64-byte `r‖s`, 33-byte compressed public key. |
-| Identifiers | `Hedera.AccountId`, `Hedera.TopicId`, `Hedera.Timestamp` | Parse / format / protobuf-encode. |
-| Protobuf | `Hedera.Proto` | Minimal proto3 wire encoder (varints, length-delimited fields). |
+| Identifiers | `Hedera.AccountId`, `Hedera.TopicId`, `Hedera.Timestamp`, `Hedera.TransactionId`, `Hedera.Duration` | Parse / format / protobuf-encode. |
+| Protobuf | `Hedera.Proto` | Minimal proto3 wire encoder + decoder. |
+| Transactions | `Hedera.Transaction` | Encode + sign `TransactionBody` → `SignedTransaction` → `Transaction` for HCS create / submit. |
+| gRPC | `Hedera.Grpc`, `Hedera.Client`, `Hedera.Network` | Unary calls over HTTP/2 (h2c) to consensus nodes; **HCS message submit verified live on testnet**. |
 
 ```elixir
-alias Hedera.{PrivateKey, PublicKey}
+alias Hedera.{AccountId, Client, PrivateKey, TopicId}
 
-key = PrivateKey.generate_ecdsa()           # or generate_ed25519/0
-pub = PrivateKey.public_key(key)
+client =
+  Client.testnet(
+    AccountId.parse("0.0.8260469"),
+    PrivateKey.from_string_ecdsa(System.fetch_env!("OPERATOR_KEY"))
+  )
 
-sig = PrivateKey.sign(key, "audit-event-hash")
-true = PublicKey.verify(pub, "audit-event-hash", sig)
+{:ok, %{precheck_code: 0, ok?: true}} =
+  Client.submit_message(client, TopicId.parse("0.0.9339331"), "audit-event-hash")
+```
 
-PublicKey.to_string(pub)                     # 33-byte compressed (ECDSA) hex
+Run the live test yourself:
+
+```bash
+OPERATOR_ID=0.0.x OPERATOR_KEY=0x... mix test --include network
 ```
 
 ## Roadmap
 
 - [x] Keccak-256, Ed25519 + ECDSA secp256k1 (Hedera conventions), identifiers, protobuf primitives
-- [ ] `TransactionBody` + `SignedTransaction` + `Transaction` encoding (HCS create / submit)
-- [ ] gRPC client over HTTP/2 to consensus nodes (`createTopic`, `submitMessage`, receipt query)
+- [x] `TransactionBody` + `SignedTransaction` + `Transaction` encoding (HCS create / submit)
+- [x] gRPC client over HTTP/2 (`submitMessage`, `createTopic`) — validated live on testnet
+- [ ] Receipt queries (sequence number / new topic id) via gRPC or mirror node
 - [ ] Mirror-node REST helpers
 - [ ] Token Service (HTS), account create/transfer
 - [ ] protoc-generated message modules from the canonical Hedera `.proto` files

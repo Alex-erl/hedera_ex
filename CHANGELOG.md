@@ -11,5 +11,14 @@ The cryptographic and encoding foundation, fully unit-tested offline:
 - **Identifiers** — `AccountId`, `TopicId`, `Timestamp` (parse / format / protobuf).
 - **Protobuf** — minimal proto3 wire encoder (`Hedera.Proto`).
 
-Not yet implemented (next milestones): `TransactionBody` / Consensus Service transaction
-encoding and the gRPC execution layer (require validation against a live testnet node).
+### Consensus Service (transactions + gRPC)
+
+- **Transactions** — `Hedera.Transaction` encodes and signs `TransactionBody` →
+  `SignedTransaction` → `Transaction` for `consensusSubmitMessage` and `consensusCreateTopic`.
+- **gRPC** — `Hedera.Grpc` (unary over HTTP/2 h2c via Mint), `Hedera.Network` (testnet/mainnet
+  nodes), `Hedera.Client` (`submit_message/3`, `create_topic/2`).
+- **Validated live**: a natively-built, natively-signed HCS message submit is accepted by a
+  Hedera **testnet** node (pre-check `OK`), confirming protobuf field numbers and signing
+  end-to-end. (`mix test --include network`.)
+
+Next: receipt queries (sequence number / topic id), mirror-node helpers, HTS.
