@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 (unreleased) — foundation (alpha)
+## 0.1.0 — 2026-07-01 — foundation (alpha)
 
 The cryptographic and encoding foundation, fully unit-tested offline:
 

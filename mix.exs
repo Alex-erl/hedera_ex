@@ -46,6 +46,6 @@ defmodule Hedera.MixProject do
   end
 
   defp docs do
-    [main: "readme", extras: ["README.md"]]
+    [main: "readme", extras: ["README.md", "CHANGELOG.md", "LICENSE"]]
   end
 end
