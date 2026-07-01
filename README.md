@@ -14,7 +14,7 @@ Add `hedera_ex` to your deps in `mix.exs`:
 
 ```elixir
 def deps do
-  [{:hedera_ex, "~> 0.2.0"}]
+  [{:hedera_ex, "~> 0.3.0"}]
 end
 ```
 
@@ -70,15 +70,21 @@ OPERATOR_ID=0.0.x OPERATOR_KEY=0x... mix test --include network
 
 ## Roadmap
 
-- [x] Keccak-256, Ed25519 + ECDSA secp256k1 (Hedera conventions), identifiers, protobuf primitives
-- [x] `TransactionBody` + `SignedTransaction` + `Transaction` encoding (HCS create / submit)
-- [x] gRPC client over HTTP/2 (`submitMessage`, `createTopic`) — validated live on testnet
-- [x] Receipt queries (status + sequence number) via gRPC `getTransactionReceipts` — verified live
-- [x] Mirror-node REST helpers (`Hedera.MirrorNode`)
-- [x] node address book + cross-node retry on transient (BUSY) failures
-- [ ] Token Service (HTS), account create/transfer, crypto transfer
-- [ ] protoc-generated message modules from the canonical Hedera `.proto` files
-- [ ] hex.pm release
+- [x] Keccak-256, Ed25519 + ECDSA secp256k1 (Hedera conventions), identifiers, crypto primitives
+- [x] Transaction encoding + signing, incl. **multi-signature** (`:signers`)
+- [x] gRPC client over HTTP/2; node address book + cross-node retry on transient (BUSY) failures
+- [x] Consensus Service — create topic, submit message (verified live)
+- [x] Crypto Service — HBAR transfers (verified live)
+- [x] Token Service (HTS) — fungible **and NFT** create / mint / burn / associate / transfer, plus freeze / KYC / wipe / pause (verified live)
+- [x] File Service — create / append / update / delete (verified live)
+- [x] Schedule Service — create / sign (verified live)
+- [x] Smart Contract Service — create / call (verified live); call results read via mirror node
+- [x] Receipts + Mirror-node REST helpers (`Hedera.MirrorNode`)
+- [x] **protoc-generated wire layer** — transactions, receipts and the query/response envelope
+- [x] hex.pm release
+- [ ] Native (gRPC) paid queries: contract-call return via record query, account balance / info, `contractCallLocal`
+- [ ] Account create / update / delete; token update / dissociate
+- [ ] Ethereum (EIP-1559) transactions
 
 ### Why field numbers aren't guessed
 

@@ -51,7 +51,7 @@ defmodule Hedera.Receipt do
   @spec parse(binary()) :: t()
   def parse(bytes) when is_binary(bytes), do: bytes |> Hedera.Pb.TransactionReceipt.decode() |> from_pb()
 
-  @doc "Map an already-decoded `Hedera.Pb.TransactionReceipt` onto this struct."
+  @doc "Map an already-decoded generated `Hedera.Pb` receipt onto this struct."
   @spec from_pb(struct()) :: t()
   def from_pb(%Hedera.Pb.TransactionReceipt{} = pb) do
     %__MODULE__{
