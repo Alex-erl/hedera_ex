@@ -36,4 +36,14 @@ defmodule Hedera.ReceiptTest do
     assert receipt.token_id == %TokenId{shard: 0, realm: 0, num: 777}
     assert receipt.new_total_supply == 1_000
   end
+
+  test "parses NFT mint serial numbers (packed and unpacked field 14)" do
+    # unpacked: two separate field-14 varints
+    unpacked = Proto.varint_field(1, 22) <> Proto.varint_field(14, 1) <> Proto.varint_field(14, 2)
+    assert Receipt.parse(unpacked).serial_numbers == [1, 2]
+
+    # packed: one length-delimited field-14 holding concatenated varints
+    packed = Proto.varint_field(1, 22) <> Proto.bytes_field(14, <<3, 4, 5>>)
+    assert Receipt.parse(packed).serial_numbers == [3, 4, 5]
+  end
 end

@@ -28,6 +28,13 @@ defmodule Hedera.Client do
   @token_mint_path "/proto.TokenService/mintToken"
   @token_burn_path "/proto.TokenService/burnToken"
   @token_associate_path "/proto.TokenService/associateTokens"
+  @token_freeze_path "/proto.TokenService/freezeTokenAccount"
+  @token_unfreeze_path "/proto.TokenService/unfreezeTokenAccount"
+  @token_grant_kyc_path "/proto.TokenService/grantKycToTokenAccount"
+  @token_revoke_kyc_path "/proto.TokenService/revokeKycFromTokenAccount"
+  @token_wipe_path "/proto.TokenService/wipeTokenAccount"
+  @token_pause_path "/proto.TokenService/pauseToken"
+  @token_unpause_path "/proto.TokenService/unpauseToken"
   @receipt_path "/proto.CryptoService/getTransactionReceipts"
 
   @f_receipt_query 14
@@ -166,6 +173,68 @@ defmodule Hedera.Client do
     end)
   end
 
+  @doc """
+  Transfer NFTs of `token`. `moves` is a list of `{sender, receiver, serial}`
+  tuples (`AccountId`s + integer serial). Needs sender authorization.
+  """
+  @spec transfer_nft(t(), TokenId.t(), [{AccountId.t(), AccountId.t(), integer()}], keyword()) ::
+          {:ok, result()} | {:error, term()}
+  def transfer_nft(%__MODULE__{} = client, %TokenId{} = token, moves, opts \\ [])
+      when is_list(moves) do
+    execute(client, @transfer_path, fn node ->
+      Transaction.crypto_transfer(
+        with_operator(client, node, [nft_transfers: [{token, moves}]] ++ opts)
+      )
+    end)
+  end
+
+  @doc "Freeze `token` for `account` (needs the freeze key)."
+  @spec freeze_token(t(), TokenId.t(), AccountId.t(), keyword()) :: {:ok, result()} | {:error, term()}
+  def freeze_token(client, token, account, opts \\ []),
+    do: token_account_op(client, @token_freeze_path, &Transaction.token_freeze/1, token, account, opts)
+
+  @doc "Unfreeze `token` for `account` (needs the freeze key)."
+  @spec unfreeze_token(t(), TokenId.t(), AccountId.t(), keyword()) :: {:ok, result()} | {:error, term()}
+  def unfreeze_token(client, token, account, opts \\ []),
+    do: token_account_op(client, @token_unfreeze_path, &Transaction.token_unfreeze/1, token, account, opts)
+
+  @doc "Grant KYC of `token` to `account` (needs the KYC key)."
+  @spec grant_kyc(t(), TokenId.t(), AccountId.t(), keyword()) :: {:ok, result()} | {:error, term()}
+  def grant_kyc(client, token, account, opts \\ []),
+    do: token_account_op(client, @token_grant_kyc_path, &Transaction.token_grant_kyc/1, token, account, opts)
+
+  @doc "Revoke KYC of `token` from `account` (needs the KYC key)."
+  @spec revoke_kyc(t(), TokenId.t(), AccountId.t(), keyword()) :: {:ok, result()} | {:error, term()}
+  def revoke_kyc(client, token, account, opts \\ []),
+    do: token_account_op(client, @token_revoke_kyc_path, &Transaction.token_revoke_kyc/1, token, account, opts)
+
+  @doc """
+  Wipe a token balance from `account` (needs the wipe key). Pass `amount:` for a
+  fungible token or `serials:` (a list) for NFTs in `opts`.
+  """
+  @spec wipe_token(t(), TokenId.t(), AccountId.t(), keyword()) :: {:ok, result()} | {:error, term()}
+  def wipe_token(%__MODULE__{} = client, %TokenId{} = token, %AccountId{} = account, opts \\ []) do
+    execute(client, @token_wipe_path, fn node ->
+      Transaction.token_wipe(with_operator(client, node, [token: token, account: account] ++ opts))
+    end)
+  end
+
+  @doc "Pause `token` (needs the pause key)."
+  @spec pause_token(t(), TokenId.t(), keyword()) :: {:ok, result()} | {:error, term()}
+  def pause_token(%__MODULE__{} = client, %TokenId{} = token, opts \\ []) do
+    execute(client, @token_pause_path, fn node ->
+      Transaction.token_pause(with_operator(client, node, [token: token] ++ opts))
+    end)
+  end
+
+  @doc "Unpause `token` (needs the pause key)."
+  @spec unpause_token(t(), TokenId.t(), keyword()) :: {:ok, result()} | {:error, term()}
+  def unpause_token(%__MODULE__{} = client, %TokenId{} = token, opts \\ []) do
+    execute(client, @token_unpause_path, fn node ->
+      Transaction.token_unpause(with_operator(client, node, [token: token] ++ opts))
+    end)
+  end
+
   @doc "Fetch a transaction's consensus receipt, polling until final (free query)."
   @spec transaction_receipt(t(), TransactionId.t(), keyword()) ::
           {:ok, Receipt.t()} | {:error, term()}
@@ -184,6 +253,13 @@ defmodule Hedera.Client do
       operator_key: client.operator_key,
       node_account_id: node.account_id
     ] ++ opts
+  end
+
+  # Shared shape for the {token, account} token-management operations.
+  defp token_account_op(client, path, builder, %TokenId{} = token, %AccountId{} = account, opts) do
+    execute(client, path, fn node ->
+      builder.(with_operator(client, node, [token: token, account: account] ++ opts))
+    end)
   end
 
   defp execute(%__MODULE__{nodes: nodes}, path, build_fun) do

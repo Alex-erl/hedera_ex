@@ -54,6 +54,17 @@ defmodule Hedera.Proto do
     end)
   end
 
+  @doc "Decode a packed run of varints (e.g. a proto3 `repeated int64` field body)."
+  @spec decode_varints(binary()) :: [non_neg_integer()]
+  def decode_varints(bin) when is_binary(bin), do: decode_varints(bin, [])
+
+  defp decode_varints(<<>>, acc), do: Enum.reverse(acc)
+
+  defp decode_varints(bin, acc) do
+    {value, rest} = take_varint(bin)
+    decode_varints(rest, [value | acc])
+  end
+
   defp decode(<<>>, acc), do: Enum.reverse(acc)
 
   defp decode(bin, acc) do

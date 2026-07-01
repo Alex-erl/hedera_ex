@@ -42,9 +42,16 @@ defmodule Hedera.Transaction do
   @f_consensus_create_topic 24
   @f_consensus_submit_message 27
   @f_token_creation 29
+  @f_token_freeze 31
+  @f_token_unfreeze 32
+  @f_token_grant_kyc 33
+  @f_token_revoke_kyc 34
   @f_token_mint 37
   @f_token_burn 38
+  @f_token_wipe 39
   @f_token_associate 40
+  @f_token_pause 46
+  @f_token_unpause 47
 
   @type build_result :: %{transaction: binary(), transaction_id: TransactionId.t()}
 
@@ -92,6 +99,7 @@ defmodule Hedera.Transaction do
   def crypto_transfer(opts) do
     hbar = Keyword.get(opts, :transfers, [])
     token_transfers = Keyword.get(opts, :token_transfers, [])
+    nft_transfers = Keyword.get(opts, :nft_transfers, [])
 
     # CryptoTransferTransactionBody { TransferList transfers = 1 } — omitted when
     # there are no HBAR moves (proto3 leaves the empty message unset).
@@ -101,23 +109,31 @@ defmodule Hedera.Transaction do
         list -> Proto.bytes_field(1, account_amounts(list, 1))
       end
 
-    # repeated TokenTransferList tokenTransfers = 2
+    # repeated TokenTransferList tokenTransfers = 2, grouping fungible moves
+    # (transfers = 2) and/or NFT moves (nftTransfers = 3) per token.
     token_fields =
       Enum.map_join(token_transfers, "", fn {%TokenId{} = token, moves} ->
-        # TokenTransferList { token = 1, repeated AccountAmount transfers = 2 }
         ttl = Proto.bytes_field(1, TokenId.to_proto(token)) <> account_amounts(moves, 2)
         Proto.bytes_field(2, ttl)
       end)
 
-    build(opts, @f_crypto_transfer, hbar_field <> token_fields)
+    nft_fields =
+      Enum.map_join(nft_transfers, "", fn {%TokenId{} = token, moves} ->
+        ttl = Proto.bytes_field(1, TokenId.to_proto(token)) <> nft_transfer_list(moves)
+        Proto.bytes_field(2, ttl)
+      end)
+
+    build(opts, @f_crypto_transfer, hbar_field <> token_fields <> nft_fields)
   end
 
   @doc """
   Build + sign a `tokenCreation`. Required: `:treasury` (an `AccountId`).
-  Common opts: `:name`, `:symbol`, `:decimals`, `:initial_supply`, `:admin_key`,
-  `:supply_key` (both `PublicKey`s — needed to later mint/burn), `:token_type`
-  (`:fungible` | `:nft`), `:supply_type` (`:infinite` | `:finite`),
-  `:max_supply`, `:token_memo`, `:auto_renew_account`, `:auto_renew_period`.
+  Common opts: `:name`, `:symbol`, `:decimals`, `:initial_supply`, `:token_type`
+  (`:fungible` | `:nft`), `:supply_type` (`:infinite` | `:finite`), `:max_supply`,
+  `:token_memo`, `:auto_renew_account`, `:auto_renew_period`. Key opts (all
+  `PublicKey`s, all optional): `:admin_key`, `:supply_key` (mint/burn),
+  `:kyc_key`, `:freeze_key`, `:wipe_key`, `:pause_key` — a management operation
+  only works if the matching key was set at creation.
 
   The treasury account (and the admin key, if set) must sign — pass extra keys
   via `:signers` when they differ from the operator.
@@ -135,6 +151,9 @@ defmodule Hedera.Transaction do
         maybe_varint(4, Keyword.get(opts, :initial_supply, 0)) <>
         Proto.bytes_field(5, AccountId.to_proto(treasury)) <>
         maybe_key(6, opts[:admin_key]) <>
+        maybe_key(7, opts[:kyc_key]) <>
+        maybe_key(8, opts[:freeze_key]) <>
+        maybe_key(9, opts[:wipe_key]) <>
         maybe_key(10, opts[:supply_key]) <>
         maybe_varint(11, bool_int(Keyword.get(opts, :freeze_default, false))) <>
         Proto.bytes_field(14, AccountId.to_proto(auto_renew)) <>
@@ -142,7 +161,8 @@ defmodule Hedera.Transaction do
         maybe_string(16, opts[:token_memo]) <>
         maybe_varint(17, token_type(Keyword.get(opts, :token_type, :fungible))) <>
         maybe_varint(18, supply_type(Keyword.get(opts, :supply_type, :infinite))) <>
-        maybe_varint(19, Keyword.get(opts, :max_supply, 0))
+        maybe_varint(19, Keyword.get(opts, :max_supply, 0)) <>
+        maybe_key(22, opts[:pause_key])
 
     fee = Keyword.get(opts, :max_fee, @default_token_create_fee)
     build(Keyword.put(opts, :max_fee, fee), @f_token_creation, inner)
@@ -196,7 +216,71 @@ defmodule Hedera.Transaction do
     build(opts, @f_token_associate, inner)
   end
 
+  @doc "Build + sign a `tokenFreezeAccount`. Required: `:token`, `:account`. Needs the freeze key."
+  @spec token_freeze(keyword()) :: build_result()
+  def token_freeze(opts), do: build(opts, @f_token_freeze, token_account_body(opts))
+
+  @doc "Build + sign a `tokenUnfreezeAccount`. Required: `:token`, `:account`. Needs the freeze key."
+  @spec token_unfreeze(keyword()) :: build_result()
+  def token_unfreeze(opts), do: build(opts, @f_token_unfreeze, token_account_body(opts))
+
+  @doc "Build + sign a `tokenGrantKyc`. Required: `:token`, `:account`. Needs the KYC key."
+  @spec token_grant_kyc(keyword()) :: build_result()
+  def token_grant_kyc(opts), do: build(opts, @f_token_grant_kyc, token_account_body(opts))
+
+  @doc "Build + sign a `tokenRevokeKyc`. Required: `:token`, `:account`. Needs the KYC key."
+  @spec token_revoke_kyc(keyword()) :: build_result()
+  def token_revoke_kyc(opts), do: build(opts, @f_token_revoke_kyc, token_account_body(opts))
+
+  @doc """
+  Build + sign a `tokenWipeAccount`. Required: `:token`, `:account`. For fungible
+  tokens pass `:amount`; for NFTs pass `:serials` (a list of serial numbers).
+  Needs the wipe key.
+  """
+  @spec token_wipe(keyword()) :: build_result()
+  def token_wipe(opts) do
+    serials = Keyword.get(opts, :serials, [])
+
+    inner =
+      Proto.bytes_field(1, TokenId.to_proto(fetch!(opts, :token))) <>
+        Proto.bytes_field(2, AccountId.to_proto(fetch!(opts, :account))) <>
+        maybe_varint(3, Keyword.get(opts, :amount, 0)) <>
+        Enum.map_join(serials, "", &Proto.varint_field(4, &1))
+
+    build(opts, @f_token_wipe, inner)
+  end
+
+  @doc "Build + sign a `tokenPause`. Required: `:token`. Needs the pause key."
+  @spec token_pause(keyword()) :: build_result()
+  def token_pause(opts), do: build(opts, @f_token_pause, token_body(opts))
+
+  @doc "Build + sign a `tokenUnpause`. Required: `:token`. Needs the pause key."
+  @spec token_unpause(keyword()) :: build_result()
+  def token_unpause(opts), do: build(opts, @f_token_unpause, token_body(opts))
+
   # --- internals --------------------------------------------------------------
+
+  # { token = 1 } — pause/unpause bodies.
+  defp token_body(opts), do: Proto.bytes_field(1, TokenId.to_proto(fetch!(opts, :token)))
+
+  # { token = 1, account = 2 } — freeze/unfreeze/grantKyc/revokeKyc bodies.
+  defp token_account_body(opts) do
+    Proto.bytes_field(1, TokenId.to_proto(fetch!(opts, :token))) <>
+      Proto.bytes_field(2, AccountId.to_proto(fetch!(opts, :account)))
+  end
+
+  # repeated NftTransfer { sender = 1, receiver = 2, serialNumber = 3 } under
+  # TokenTransferList.nftTransfers = 3.
+  defp nft_transfer_list(moves) do
+    Enum.map_join(moves, "", fn {%AccountId{} = sender, %AccountId{} = receiver, serial} ->
+      nt =
+        Proto.bytes_field(1, AccountId.to_proto(sender)) <>
+          Proto.bytes_field(2, AccountId.to_proto(receiver)) <>
+          Proto.varint_field(3, serial)
+
+      Proto.bytes_field(3, nt)
+    end)
+  end
 
   # A run of repeated AccountAmount { accountID = 1, amount = 2 (sint64) } under
   # the given field number (1 for an HBAR TransferList, 2 for a TokenTransferList).

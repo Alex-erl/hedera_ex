@@ -19,6 +19,7 @@ defmodule Hedera.Receipt do
   @f_topic_running_hash 8
   @f_token_id 10
   @f_new_total_supply 11
+  @f_serial_numbers 14
 
   @enforce_keys [:status]
   defstruct [
@@ -27,7 +28,8 @@ defmodule Hedera.Receipt do
     :topic_sequence_number,
     :topic_running_hash,
     :token_id,
-    :new_total_supply
+    :new_total_supply,
+    serial_numbers: []
   ]
 
   @type t :: %__MODULE__{
@@ -36,7 +38,8 @@ defmodule Hedera.Receipt do
           topic_sequence_number: non_neg_integer() | nil,
           topic_running_hash: binary() | nil,
           token_id: TokenId.t() | nil,
-          new_total_supply: non_neg_integer() | nil
+          new_total_supply: non_neg_integer() | nil,
+          serial_numbers: [integer()]
         }
 
   @doc "Has the receipt reached a final (non-UNKNOWN) status?"
@@ -58,8 +61,19 @@ defmodule Hedera.Receipt do
       topic_sequence_number: Proto.field(fields, @f_topic_sequence_number),
       topic_running_hash: Proto.field(fields, @f_topic_running_hash),
       token_id: parse_token_id(Proto.field(fields, @f_token_id)),
-      new_total_supply: Proto.field(fields, @f_new_total_supply)
+      new_total_supply: Proto.field(fields, @f_new_total_supply),
+      serial_numbers: parse_serials(fields)
     }
+  end
+
+  # `repeated int64 serialNumbers = 14` (NFT mint). Handle both proto3-packed
+  # (one wire-2 field holding concatenated varints) and unpacked (many wire-0).
+  defp parse_serials(fields) do
+    Enum.flat_map(fields, fn
+      {@f_serial_numbers, 0, v} -> [v]
+      {@f_serial_numbers, 2, bin} -> Proto.decode_varints(bin)
+      _ -> []
+    end)
   end
 
   defp parse_topic_id(nil), do: nil

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.2.0 (unreleased)
+
+### Token Service — NFTs & token management
+
+- **NFTs** — `token_create` with `token_type: :nft` (NON_FUNGIBLE_UNIQUE); `token_mint` with
+  `:metadata` (a list of binaries); mint receipts now expose `serial_numbers` (packed or unpacked).
+  NFT transfers via `Hedera.Client.transfer_nft/4` (CryptoTransfer `nftTransfers`).
+- **Management** — `freeze_token` / `unfreeze_token`, `grant_kyc` / `revoke_kyc`,
+  `wipe_token` (fungible amount or NFT serials), `pause_token` / `unpause_token`. `token_create`
+  now accepts `:kyc_key`, `:freeze_key`, `:wipe_key`, `:pause_key`.
+- **Validated live** (testnet): create NFT → mint (serials `[1,2]`) → pause/unpause; then
+  associate → grantKyc → NFT transfer → freeze/unfreeze → wipe — every step a `SUCCESS` receipt,
+  confirming the `tokenFreeze`(31)/`tokenUnfreeze`(32)/`grantKyc`(33)/`revokeKyc`(34)/`tokenWipe`(39)/
+  `tokenPause`(46)/`tokenUnpause`(47) field numbers and the `nftTransfers` encoding.
+
 ## 0.1.0 — 2026-07-01 — foundation (alpha)
 
 The cryptographic and encoding foundation, fully unit-tested offline:

@@ -226,6 +226,122 @@ defmodule Hedera.TransactionTest do
     assert aas == [9, 10]
   end
 
+  test "token_create sets kyc/freeze/wipe/pause keys (fields 7/8/9/22)" do
+    key = PrivateKey.generate_ecdsa()
+    pub = PrivateKey.public_key(key)
+    treasury = AccountId.parse("0.0.8260469")
+
+    %{transaction: tx} =
+      Transaction.token_create(
+        operator_id: treasury,
+        operator_key: key,
+        node_account_id: AccountId.parse("0.0.3"),
+        treasury: treasury,
+        token_type: :nft,
+        supply_type: :finite,
+        max_supply: 100,
+        supply_key: pub,
+        kyc_key: pub,
+        freeze_key: pub,
+        wipe_key: pub,
+        pause_key: pub
+      )
+
+    tc = Proto.decode(Proto.field(Proto.decode(Proto.field(decode_signed(tx), 1)), 29))
+    # NON_FUNGIBLE_UNIQUE = 1, FINITE = 1
+    assert Proto.field(tc, 17) == 1
+    assert Proto.field(tc, 18) == 1
+    assert Proto.field(tc, 19) == 100
+
+    for field <- [7, 8, 9, 10, 22] do
+      key_msg = Proto.decode(Proto.field(tc, field))
+      assert Proto.field(key_msg, 7) == PublicKey.to_bytes(pub)
+    end
+  end
+
+  test "token_mint with NFT metadata encodes repeated field 3" do
+    key = PrivateKey.generate_ecdsa()
+
+    %{transaction: tx} =
+      Transaction.token_mint(
+        operator_id: AccountId.parse("0.0.2"),
+        operator_key: key,
+        node_account_id: AccountId.parse("0.0.3"),
+        token: TokenId.parse("0.0.777"),
+        metadata: ["ipfs://a", "ipfs://b"]
+      )
+
+    mint = Proto.decode(Proto.field(Proto.decode(Proto.field(decode_signed(tx), 1)), 37))
+    metas = for {3, _w, v} <- mint, do: v
+    assert metas == ["ipfs://a", "ipfs://b"]
+  end
+
+  test "token management bodies carry the right field numbers" do
+    key = PrivateKey.generate_ecdsa()
+    base = [operator_id: AccountId.parse("0.0.2"), operator_key: key, node_account_id: AccountId.parse("0.0.3")]
+    token = TokenId.parse("0.0.777")
+    account = AccountId.parse("0.0.8983395")
+
+    for {fun, field} <- [
+          {:token_freeze, 31},
+          {:token_unfreeze, 32},
+          {:token_grant_kyc, 33},
+          {:token_revoke_kyc, 34}
+        ] do
+      %{transaction: tx} = apply(Transaction, fun, [base ++ [token: token, account: account]])
+      body = Proto.decode(Proto.field(Proto.decode(Proto.field(decode_signed(tx), 1)), field))
+      assert is_binary(Proto.field(body, 1))
+      assert is_binary(Proto.field(body, 2))
+    end
+
+    # pause/unpause: { token = 1 } only
+    %{transaction: tx} = Transaction.token_pause(base ++ [token: token])
+    assert is_binary(Proto.field(Proto.decode(Proto.field(decode_signed(tx), 1)), 46))
+
+    %{transaction: tx} = Transaction.token_unpause(base ++ [token: token])
+    assert is_binary(Proto.field(Proto.decode(Proto.field(decode_signed(tx), 1)), 47))
+  end
+
+  test "token_wipe carries account + NFT serials (field 39)" do
+    key = PrivateKey.generate_ecdsa()
+
+    %{transaction: tx} =
+      Transaction.token_wipe(
+        operator_id: AccountId.parse("0.0.2"),
+        operator_key: key,
+        node_account_id: AccountId.parse("0.0.3"),
+        token: TokenId.parse("0.0.777"),
+        account: AccountId.parse("0.0.8983395"),
+        serials: [1, 2, 3]
+      )
+
+    wipe = Proto.decode(Proto.field(Proto.decode(Proto.field(decode_signed(tx), 1)), 39))
+    serials = for {4, _w, v} <- wipe, do: v
+    assert serials == [1, 2, 3]
+  end
+
+  test "crypto_transfer carries NFT transfers (TokenTransferList.nftTransfers = 3)" do
+    key = PrivateKey.generate_ecdsa()
+    sender = AccountId.parse("0.0.8260469")
+    receiver = AccountId.parse("0.0.8983395")
+    token = TokenId.parse("0.0.777")
+
+    %{transaction: tx} =
+      Transaction.crypto_transfer(
+        operator_id: sender,
+        operator_key: key,
+        node_account_id: AccountId.parse("0.0.3"),
+        nft_transfers: [{token, [{sender, receiver, 7}]}]
+      )
+
+    crypto_body = Proto.decode(Proto.field(Proto.decode(Proto.field(decode_signed(tx), 1)), 14))
+    ttl = Proto.decode(Proto.field(crypto_body, 2))
+    nft = Proto.decode(Proto.field(ttl, 3))
+    assert is_binary(Proto.field(nft, 1))
+    assert is_binary(Proto.field(nft, 2))
+    assert Proto.field(nft, 3) == 7
+  end
+
   test "create_topic encodes a consensusCreateTopic body (field 24)" do
     key = PrivateKey.generate_ed25519()
 

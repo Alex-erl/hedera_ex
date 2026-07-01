@@ -129,4 +129,93 @@ defmodule Hedera.ClientNetworkTest do
     assert {:ok, r3} = Client.transaction_receipt(client, xfer.transaction_id)
     assert Receipt.success?(r3), "transfer receipt status #{r3.status}"
   end
+
+  defp await_success!(client, %{transaction_id: tx_id, precheck_code: pc}, label) do
+    assert pc == 0, "#{label} pre-check #{pc} (expected 0)"
+    assert {:ok, receipt} = Client.transaction_receipt(client, tx_id)
+    assert Receipt.success?(receipt), "#{label} receipt status #{receipt.status} (expected 22)"
+    receipt
+  end
+
+  test "HTS NFT: create non-fungible token, mint with metadata, pause/unpause" do
+    {operator_id, operator_key, client} = operator()
+    pub = PrivateKey.public_key(operator_key)
+
+    assert {:ok, create} =
+             Client.create_token(client,
+               name: "TrustLayer NFT",
+               symbol: "TLNFT",
+               token_type: :nft,
+               supply_type: :finite,
+               max_supply: 100,
+               treasury: operator_id,
+               admin_key: pub,
+               supply_key: pub,
+               pause_key: pub
+             )
+
+    token = await_success!(client, create, "nft create").token_id
+    assert token
+
+    # mint two NFTs with metadata; receipt carries the assigned serial numbers
+    assert {:ok, mint} = Client.mint_token(client, token, 0, metadata: ["ipfs://one", "ipfs://two"])
+    r = await_success!(client, mint, "nft mint")
+    assert r.serial_numbers == [1, 2], "expected serials [1,2], got #{inspect(r.serial_numbers)}"
+    assert r.new_total_supply == 2
+
+    # pause then unpause (pause key)
+    assert {:ok, pause} = Client.pause_token(client, token)
+    await_success!(client, pause, "pause")
+    assert {:ok, unpause} = Client.unpause_token(client, token)
+    await_success!(client, unpause, "unpause")
+  end
+
+  test "HTS management: kyc, NFT transfer, freeze/unfreeze, wipe with a second account" do
+    {operator_id, operator_key, client} = operator()
+    pub = PrivateKey.public_key(operator_key)
+
+    client_id = AccountId.parse(System.fetch_env!("CLIENT_ID"))
+    client_key = PrivateKey.from_string_ed25519(System.fetch_env!("CLIENT_KEY"))
+
+    assert {:ok, create} =
+             Client.create_token(client,
+               name: "TrustLayer NFT Mgmt",
+               symbol: "TLM",
+               token_type: :nft,
+               supply_type: :finite,
+               max_supply: 100,
+               treasury: operator_id,
+               admin_key: pub,
+               supply_key: pub,
+               kyc_key: pub,
+               freeze_key: pub,
+               wipe_key: pub
+             )
+
+    token = await_success!(client, create, "create").token_id
+
+    assert {:ok, mint} = Client.mint_token(client, token, 0, metadata: ["ipfs://x"])
+    await_success!(client, mint, "mint")
+
+    # the client must associate + be KYC-granted before it can receive
+    assert {:ok, assoc} = Client.associate_token(client, client_id, [token], signers: [client_key])
+    await_success!(client, assoc, "associate")
+
+    assert {:ok, kyc} = Client.grant_kyc(client, token, client_id)
+    await_success!(client, kyc, "grant_kyc")
+
+    # transfer NFT serial 1 operator -> client
+    assert {:ok, xfer} = Client.transfer_nft(client, token, [{operator_id, client_id, 1}])
+    await_success!(client, xfer, "nft transfer")
+
+    # freeze then unfreeze the client (freeze key)
+    assert {:ok, fz} = Client.freeze_token(client, token, client_id)
+    await_success!(client, fz, "freeze")
+    assert {:ok, uf} = Client.unfreeze_token(client, token, client_id)
+    await_success!(client, uf, "unfreeze")
+
+    # wipe the NFT serial back off the client (wipe key)
+    assert {:ok, wipe} = Client.wipe_token(client, token, client_id, serials: [1])
+    await_success!(client, wipe, "wipe")
+  end
 end
