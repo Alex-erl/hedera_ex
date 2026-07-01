@@ -44,4 +44,21 @@ The cryptographic and encoding foundation, fully unit-tested offline:
   and reaches a `SUCCESS` receipt, confirming the `cryptoTransfer` field numbers and the
   `TransferList` / `AccountAmount` (sint64) encoding end-to-end.
 
-Next: HTS (token create / mint / associate / transfer), protoc-generated messages, hex.pm release.
+### Token Service (HTS)
+
+- **Tokens** — `Hedera.Transaction` gains `token_create/1`, `token_mint/1`, `token_burn/1` and
+  `token_associate/1`; `crypto_transfer/1` now also carries `:token_transfers`. `Hedera.Client`
+  gains `create_token/2`, `mint_token/4`, `burn_token/4`, `associate_token/4`, `transfer_token/4`.
+  New `Hedera.TokenId`; `Hedera.PublicKey.to_key_proto/1` encodes a `Key` message (Ed25519 in
+  field 2, ECDSA secp256k1 in field 7); `Hedera.Receipt` now parses `token_id` and
+  `new_total_supply`.
+- **Multi-signature** — transaction building accepts `:signers` (extra keys beyond the operator);
+  the signature map carries one `SignaturePair` per distinct key, so e.g. a token association can
+  be signed by both the fee-paying operator and the account being associated.
+- **Validated live** (full lifecycle on testnet): create a fungible token → mint supply (receipt
+  `token_id` + `new_total_supply`) → associate a second account (multi-sig: operator ECDSA +
+  account Ed25519) → transfer tokens to it — every step reaches a `SUCCESS` receipt. This confirms
+  the `tokenCreation` (29) / `tokenMint` (37) / `tokenAssociate` (40) field numbers, the `Key`
+  encoding, and `TokenTransferList` end-to-end.
+
+Next: NFT mint/metadata, token freeze/kyc/wipe, protoc-generated messages, hex.pm release.

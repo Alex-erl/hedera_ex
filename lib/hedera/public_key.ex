@@ -6,6 +6,7 @@ defmodule Hedera.PublicKey do
   """
 
   alias Hedera.Crypto.{Keccak, Secp256k1}
+  alias Hedera.Proto
 
   @enforce_keys [:type, :point]
   defstruct [:type, :point]
@@ -38,4 +39,15 @@ defmodule Hedera.PublicKey do
   @doc "Lowercase hex of the wire-form public key."
   @spec to_string(t()) :: binary()
   def to_string(%__MODULE__{} = key), do: key |> to_bytes() |> Base.encode16(case: :lower)
+
+  @doc """
+  Encode as a Hedera `Key` protobuf message: Ed25519 in field 2, ECDSA
+  secp256k1 (compressed) in field 7. Used wherever a transaction body expects a
+  `Key` (admin/supply/kyc/freeze/wipe keys, etc.).
+  """
+  @spec to_key_proto(t()) :: binary()
+  def to_key_proto(%__MODULE__{type: :ed25519} = key), do: Proto.bytes_field(2, to_bytes(key))
+
+  def to_key_proto(%__MODULE__{type: :ecdsa_secp256k1} = key),
+    do: Proto.bytes_field(7, to_bytes(key))
 end

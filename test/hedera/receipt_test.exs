@@ -1,7 +1,7 @@
 defmodule Hedera.ReceiptTest do
   use ExUnit.Case, async: true
 
-  alias Hedera.{Proto, Receipt, TopicId}
+  alias Hedera.{Proto, Receipt, TokenId, TopicId}
 
   test "parses status, topic id, sequence number and running hash" do
     bytes =
@@ -22,5 +22,18 @@ defmodule Hedera.ReceiptTest do
 
   test "UNKNOWN status is not final" do
     refute Receipt.final?(Receipt.parse(Proto.varint_field(1, 21)))
+  end
+
+  test "parses token id (create) and new total supply (mint/burn)" do
+    bytes =
+      Proto.varint_field(1, 22) <>
+        Proto.bytes_field(10, TokenId.to_proto(%TokenId{shard: 0, realm: 0, num: 777})) <>
+        Proto.varint_field(11, 1_000)
+
+    receipt = Receipt.parse(bytes)
+
+    assert Receipt.success?(receipt)
+    assert receipt.token_id == %TokenId{shard: 0, realm: 0, num: 777}
+    assert receipt.new_total_supply == 1_000
   end
 end

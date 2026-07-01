@@ -15,6 +15,7 @@ defmodule Hedera.Client do
     PrivateKey,
     Proto,
     Receipt,
+    TokenId,
     TopicId,
     Transaction,
     TransactionId
@@ -23,6 +24,10 @@ defmodule Hedera.Client do
   @submit_path "/proto.ConsensusService/submitMessage"
   @create_path "/proto.ConsensusService/createTopic"
   @transfer_path "/proto.CryptoService/cryptoTransfer"
+  @token_create_path "/proto.TokenService/createToken"
+  @token_mint_path "/proto.TokenService/mintToken"
+  @token_burn_path "/proto.TokenService/burnToken"
+  @token_associate_path "/proto.TokenService/associateTokens"
   @receipt_path "/proto.CryptoService/getTransactionReceipts"
 
   @f_receipt_query 14
@@ -103,6 +108,64 @@ defmodule Hedera.Client do
     end)
   end
 
+  @doc """
+  Create a new HTS token. See `Hedera.Transaction.token_create/1` for opts
+  (`:treasury` is required). The new token's id is in the receipt's `token_id`.
+  """
+  @spec create_token(t(), keyword()) :: {:ok, result()} | {:error, term()}
+  def create_token(%__MODULE__{} = client, opts \\ []) do
+    execute(client, @token_create_path, fn node ->
+      Transaction.token_create(with_operator(client, node, opts))
+    end)
+  end
+
+  @doc "Mint `amount` of (or `:metadata` for) a token. Needs the supply key."
+  @spec mint_token(t(), TokenId.t(), non_neg_integer(), keyword()) ::
+          {:ok, result()} | {:error, term()}
+  def mint_token(%__MODULE__{} = client, %TokenId{} = token, amount, opts \\ []) do
+    execute(client, @token_mint_path, fn node ->
+      Transaction.token_mint(with_operator(client, node, [token: token, amount: amount] ++ opts))
+    end)
+  end
+
+  @doc "Burn `amount` of a token from the treasury. Needs the supply key."
+  @spec burn_token(t(), TokenId.t(), non_neg_integer(), keyword()) ::
+          {:ok, result()} | {:error, term()}
+  def burn_token(%__MODULE__{} = client, %TokenId{} = token, amount, opts \\ []) do
+    execute(client, @token_burn_path, fn node ->
+      Transaction.token_burn(with_operator(client, node, [token: token, amount: amount] ++ opts))
+    end)
+  end
+
+  @doc """
+  Associate `tokens` with `account`. The account must sign; when it is not the
+  operator, pass its key via `signers: [account_key]` in `opts`.
+  """
+  @spec associate_token(t(), AccountId.t(), [TokenId.t()], keyword()) ::
+          {:ok, result()} | {:error, term()}
+  def associate_token(%__MODULE__{} = client, %AccountId{} = account, tokens, opts \\ []) do
+    execute(client, @token_associate_path, fn node ->
+      Transaction.token_associate(
+        with_operator(client, node, [account: account, tokens: tokens] ++ opts)
+      )
+    end)
+  end
+
+  @doc """
+  Transfer an HTS token between accounts. `moves` is a list of
+  `{%AccountId{}, amount}` pairs that must net to zero (debits negative).
+  """
+  @spec transfer_token(t(), TokenId.t(), [{AccountId.t(), integer()}], keyword()) ::
+          {:ok, result()} | {:error, term()}
+  def transfer_token(%__MODULE__{} = client, %TokenId{} = token, moves, opts \\ [])
+      when is_list(moves) do
+    execute(client, @transfer_path, fn node ->
+      Transaction.crypto_transfer(
+        with_operator(client, node, [token_transfers: [{token, moves}]] ++ opts)
+      )
+    end)
+  end
+
   @doc "Fetch a transaction's consensus receipt, polling until final (free query)."
   @spec transaction_receipt(t(), TransactionId.t(), keyword()) ::
           {:ok, Receipt.t()} | {:error, term()}
@@ -113,6 +176,15 @@ defmodule Hedera.Client do
   end
 
   # --- execution with cross-node retry ----------------------------------------
+
+  # Prepend the standard operator/node options to a per-call opts list.
+  defp with_operator(%__MODULE__{} = client, node, opts) do
+    [
+      operator_id: client.operator_id,
+      operator_key: client.operator_key,
+      node_account_id: node.account_id
+    ] ++ opts
+  end
 
   defp execute(%__MODULE__{nodes: nodes}, path, build_fun) do
     attempt(nodes, path, build_fun, {:error, :no_nodes})
