@@ -17,6 +17,7 @@ defmodule Hedera.Transaction do
 
   alias Hedera.{
     AccountId,
+    ContractId,
     FileId,
     Pb,
     PrivateKey,
@@ -28,9 +29,10 @@ defmodule Hedera.Transaction do
     TransactionId
   }
 
-  # default max fee: 2 ℏ in tinybars (token create needs a higher ceiling)
+  # default max fee: 2 ℏ in tinybars (token/contract create need a higher ceiling)
   @default_max_fee 200_000_000
   @default_token_create_fee 4_000_000_000
+  @default_contract_fee 20_000_000_000
   @default_valid_seconds 120
   # token/file auto-renew/expiry default: ~90 days
   @default_auto_renew_seconds 7_776_000
@@ -265,6 +267,59 @@ defmodule Hedera.Transaction do
   def schedule_sign(opts),
     do: build(opts, {:scheduleSign, %Pb.ScheduleSignTransactionBody{scheduleID: pb_schedule(fetch!(opts, :schedule_id))}})
 
+  # --- Smart Contract Service -------------------------------------------------
+
+  @doc """
+  Build + sign a `contractCreateInstance`. Provide the bytecode either inline via
+  `:bytecode` (EVM init bytecode) or by `:file` (a `FileId` holding it). Opts:
+  `:gas` (default 100 000), `:admin_key`, `:initial_balance`,
+  `:constructor_parameters`, `:auto_renew_period`, `:contract_memo`. The new
+  contract id is returned in the receipt.
+  """
+  @spec contract_create(keyword()) :: build_result()
+  def contract_create(opts) do
+    renew_period = Keyword.get(opts, :auto_renew_period, @default_auto_renew_seconds)
+
+    body = %Pb.ContractCreateTransactionBody{
+      initcodeSource: initcode_source(opts),
+      adminKey: pb_key(opts[:admin_key]),
+      gas: Keyword.get(opts, :gas, 100_000),
+      initialBalance: Keyword.get(opts, :initial_balance, 0),
+      autoRenewPeriod: %Pb.Duration{seconds: renew_period},
+      constructorParameters: opts[:constructor_parameters] || "",
+      memo: opts[:contract_memo] || ""
+    }
+
+    fee = Keyword.get(opts, :max_fee, @default_contract_fee)
+    build(Keyword.put(opts, :max_fee, fee), {:contractCreateInstance, body})
+  end
+
+  @doc """
+  Build + sign a `contractCall`. Required: `:contract` (a `ContractId`). Opts:
+  `:gas` (default 50 000), `:amount` (tinybars to send), `:function_parameters`
+  (ABI-encoded call data). The return value is in the record, not the receipt.
+  """
+  @spec contract_call(keyword()) :: build_result()
+  def contract_call(opts) do
+    body = %Pb.ContractCallTransactionBody{
+      contractID: pb_contract(fetch!(opts, :contract)),
+      gas: Keyword.get(opts, :gas, 50_000),
+      amount: Keyword.get(opts, :amount, 0),
+      functionParameters: opts[:function_parameters] || ""
+    }
+
+    fee = Keyword.get(opts, :max_fee, @default_contract_fee)
+    build(Keyword.put(opts, :max_fee, fee), {:contractCall, body})
+  end
+
+  defp initcode_source(opts) do
+    cond do
+      opts[:bytecode] -> {:initcode, opts[:bytecode]}
+      opts[:file] -> {:fileID, pb_file(opts[:file])}
+      true -> raise ArgumentError, "contract_create needs :bytecode or :file"
+    end
+  end
+
   # --- build / sign -----------------------------------------------------------
 
   defp build(opts, data) do
@@ -362,6 +417,9 @@ defmodule Hedera.Transaction do
 
   defp pb_schedule(%ScheduleId{shard: s, realm: r, num: n}),
     do: %Pb.ScheduleID{shardNum: s, realmNum: r, scheduleNum: n}
+
+  defp pb_contract(%ContractId{shard: s, realm: r, num: n}),
+    do: %Pb.ContractID{shardNum: s, realmNum: r, contract: {:contractNum, n}}
 
   defp pb_txid(%TransactionId{account_id: account, valid_start: %Timestamp{seconds: s, nanos: n}}) do
     %Pb.TransactionID{

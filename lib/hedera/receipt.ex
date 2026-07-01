@@ -6,7 +6,7 @@ defmodule Hedera.Receipt do
   the token's `new_total_supply` (on mint/burn).
   """
 
-  alias Hedera.{FileId, ScheduleId, TokenId, TopicId}
+  alias Hedera.{ContractId, FileId, ScheduleId, TokenId, TopicId}
 
   # ResponseCodeEnum
   @status_unknown 21
@@ -22,6 +22,7 @@ defmodule Hedera.Receipt do
     :new_total_supply,
     :file_id,
     :schedule_id,
+    :contract_id,
     serial_numbers: []
   ]
 
@@ -34,6 +35,7 @@ defmodule Hedera.Receipt do
           new_total_supply: non_neg_integer() | nil,
           file_id: FileId.t() | nil,
           schedule_id: ScheduleId.t() | nil,
+          contract_id: ContractId.t() | nil,
           serial_numbers: [integer()]
         }
 
@@ -59,6 +61,7 @@ defmodule Hedera.Receipt do
       new_total_supply: pb.newTotalSupply,
       file_id: from_id(pb.fileID, FileId, :fileNum),
       schedule_id: from_id(pb.scheduleID, ScheduleId, :scheduleNum),
+      contract_id: from_contract(pb.contractID),
       serial_numbers: pb.serialNumbers
     }
   end
@@ -68,5 +71,13 @@ defmodule Hedera.Receipt do
 
   defp from_id(pb, mod, num_key) do
     struct(mod, shard: pb.shardNum, realm: pb.realmNum, num: Map.get(pb, num_key))
+  end
+
+  # ContractID carries a `contract` oneof (contractNum | evm_address).
+  defp from_contract(nil), do: nil
+
+  defp from_contract(pb) do
+    num = with {:contractNum, n} <- pb.contract, do: n, else: (_ -> nil)
+    %ContractId{shard: pb.shardNum, realm: pb.realmNum, num: num}
   end
 end

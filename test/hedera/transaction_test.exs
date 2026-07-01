@@ -1,7 +1,7 @@
 defmodule Hedera.TransactionTest do
   use ExUnit.Case, async: true
 
-  alias Hedera.{AccountId, FileId, PrivateKey, PublicKey, Proto, ScheduleId, TokenId, TopicId, Transaction}
+  alias Hedera.{AccountId, ContractId, FileId, PrivateKey, PublicKey, Proto, ScheduleId, TokenId, TopicId, Transaction}
 
   defp decode_signed(tx) do
     # Transaction { signedTransactionBytes = 5 } -> SignedTransaction
@@ -421,6 +421,44 @@ defmodule Hedera.TransactionTest do
 
     ss = Proto.decode(Proto.field(Proto.decode(Proto.field(decode_signed(tx), 1)), 44))
     assert is_binary(Proto.field(ss, 1))
+  end
+
+  test "contract_create encodes contractCreateInstance (8) with inline initcode + gas" do
+    key = PrivateKey.generate_ecdsa()
+
+    %{transaction: tx} =
+      Transaction.contract_create(
+        operator_id: AccountId.parse("0.0.2"),
+        operator_key: key,
+        node_account_id: AccountId.parse("0.0.3"),
+        bytecode: <<0x60, 0x00, 0x60, 0x00, 0xF3>>,
+        gas: 120_000
+      )
+
+    cc = Proto.decode(Proto.field(Proto.decode(Proto.field(decode_signed(tx), 1)), 8))
+    # initcode is field 16 of the oneof; gas is field 4
+    assert Proto.field(cc, 16) == <<0x60, 0x00, 0x60, 0x00, 0xF3>>
+    assert Proto.field(cc, 4) == 120_000
+  end
+
+  test "contract_call encodes contractCall (7) with contractID, gas, params" do
+    key = PrivateKey.generate_ecdsa()
+
+    %{transaction: tx} =
+      Transaction.contract_call(
+        operator_id: AccountId.parse("0.0.2"),
+        operator_key: key,
+        node_account_id: AccountId.parse("0.0.3"),
+        contract: ContractId.parse("0.0.1234"),
+        gas: 60_000,
+        function_parameters: <<0xAB, 0xCD>>
+      )
+
+    call = Proto.decode(Proto.field(Proto.decode(Proto.field(decode_signed(tx), 1)), 7))
+    # ContractID sub-message (field 1), gas (2), functionParameters (4)
+    assert is_binary(Proto.field(call, 1))
+    assert Proto.field(call, 2) == 60_000
+    assert Proto.field(call, 4) == <<0xAB, 0xCD>>
   end
 
   test "create_topic encodes a consensusCreateTopic body (field 24)" do

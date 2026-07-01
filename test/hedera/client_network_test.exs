@@ -7,7 +7,7 @@ defmodule Hedera.ClientNetworkTest do
   """
   use ExUnit.Case, async: false
 
-  alias Hedera.{AccountId, Client, FileId, PrivateKey, Receipt, ScheduleId, TokenId, TopicId}
+  alias Hedera.{AccountId, Client, ContractId, FileId, PrivateKey, Receipt, ScheduleId, TokenId, TopicId}
 
   @moduletag :network
   @topic "0.0.9339331"
@@ -243,10 +243,12 @@ defmodule Hedera.ClientNetworkTest do
 
     # scheduled transfer debits the client (1 tinybar) → needs the CLIENT's
     # signature, which the operator-created schedule does not yet have → pending
+    # unique memo per run — Hedera dedupes identical schedules (status 210,
+    # IDENTICAL_SCHEDULE_ALREADY_CREATED)
     assert {:ok, create} =
              Client.create_schedule(client,
                transfers: [{client_id, -1}, {operator_id, 1}],
-               schedule_memo: "tl-scheduled"
+               schedule_memo: "tl-scheduled-#{:os.system_time(:millisecond)}"
              )
 
     r = await_success!(client, create, "schedule create")
@@ -255,5 +257,21 @@ defmodule Hedera.ClientNetworkTest do
     # the client adds its signature → the scheduled transfer executes
     assert {:ok, sign} = Client.sign_schedule(client, schedule, signers: [client_key])
     await_success!(client, sign, "schedule sign")
+  end
+
+  test "SmartContract Service: deploy inline bytecode then call the contract" do
+    {_operator_id, _operator_key, client} = operator()
+
+    # EVM init that deploys a 1-byte STOP (0x00) runtime: CODECOPY the last byte
+    # to memory then RETURN it.
+    bytecode = <<0x60, 0x01, 0x60, 0x0C, 0x60, 0x00, 0x39, 0x60, 0x01, 0x60, 0x00, 0xF3, 0x00>>
+
+    assert {:ok, create} = Client.create_contract(client, bytecode: bytecode, gas: 200_000)
+    r = await_success!(client, create, "contract create")
+    assert %ContractId{} = contract = r.contract_id
+
+    # call it: the STOP runtime halts cleanly (no return value)
+    assert {:ok, call} = Client.call_contract(client, contract, gas: 100_000)
+    await_success!(client, call, "contract call")
   end
 end

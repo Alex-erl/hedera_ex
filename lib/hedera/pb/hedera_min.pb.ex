@@ -112,6 +112,22 @@ defmodule Hedera.Pb.ScheduleID do
   field :scheduleNum, 3, type: :int64
 end
 
+defmodule Hedera.Pb.ContractID do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.ContractID",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  oneof :contract, 0
+
+  field :shardNum, 1, type: :int64
+  field :realmNum, 2, type: :int64
+  field :contractNum, 3, type: :int64, oneof: 0
+  field :evm_address, 4, type: :bytes, json_name: "evmAddress", oneof: 0
+end
+
 defmodule Hedera.Pb.TransactionID do
   @moduledoc false
 
@@ -472,6 +488,40 @@ defmodule Hedera.Pb.ScheduleSignTransactionBody do
   field :scheduleID, 1, type: Hedera.Pb.ScheduleID
 end
 
+defmodule Hedera.Pb.ContractCreateTransactionBody do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.ContractCreateTransactionBody",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  oneof :initcodeSource, 0
+
+  field :fileID, 1, type: Hedera.Pb.FileID, oneof: 0
+  field :initcode, 16, type: :bytes, oneof: 0
+  field :adminKey, 3, type: Hedera.Pb.Key
+  field :gas, 4, type: :int64
+  field :initialBalance, 5, type: :int64
+  field :autoRenewPeriod, 8, type: Hedera.Pb.Duration
+  field :constructorParameters, 9, type: :bytes
+  field :memo, 13, type: :string
+end
+
+defmodule Hedera.Pb.ContractCallTransactionBody do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.ContractCallTransactionBody",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  field :contractID, 1, type: Hedera.Pb.ContractID
+  field :gas, 2, type: :int64
+  field :amount, 3, type: :int64
+  field :functionParameters, 4, type: :bytes
+end
+
 defmodule Hedera.Pb.TransactionBody do
   @moduledoc false
 
@@ -487,6 +537,8 @@ defmodule Hedera.Pb.TransactionBody do
   field :transactionFee, 3, type: :uint64
   field :transactionValidDuration, 4, type: Hedera.Pb.Duration
   field :memo, 6, type: :string
+  field :contractCall, 7, type: Hedera.Pb.ContractCallTransactionBody, oneof: 0
+  field :contractCreateInstance, 8, type: Hedera.Pb.ContractCreateTransactionBody, oneof: 0
   field :fileAppend, 16, type: Hedera.Pb.FileAppendTransactionBody, oneof: 0
   field :fileCreate, 17, type: Hedera.Pb.FileCreateTransactionBody, oneof: 0
   field :fileDelete, 18, type: Hedera.Pb.FileDeleteTransactionBody, oneof: 0
@@ -579,6 +631,7 @@ defmodule Hedera.Pb.TransactionReceipt do
     syntax: :proto3
 
   field :status, 1, type: :int32
+  field :contractID, 4, type: Hedera.Pb.ContractID
   field :fileID, 3, type: Hedera.Pb.FileID
   field :topicID, 6, type: Hedera.Pb.TopicID
   field :topicSequenceNumber, 7, type: :uint64

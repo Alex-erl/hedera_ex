@@ -10,6 +10,7 @@ defmodule Hedera.Client do
 
   alias Hedera.{
     AccountId,
+    ContractId,
     FileId,
     Grpc,
     Network,
@@ -43,6 +44,8 @@ defmodule Hedera.Client do
   @file_delete_path "/proto.FileService/deleteFile"
   @schedule_create_path "/proto.ScheduleService/createSchedule"
   @schedule_sign_path "/proto.ScheduleService/signSchedule"
+  @contract_create_path "/proto.SmartContractService/createContract"
+  @contract_call_path "/proto.SmartContractService/contractCallMethod"
   @receipt_path "/proto.CryptoService/getTransactionReceipts"
 
   @f_receipt_query 14
@@ -292,6 +295,30 @@ defmodule Hedera.Client do
   def sign_schedule(%__MODULE__{} = client, %ScheduleId{} = schedule_id, opts \\ []) do
     execute(client, @schedule_sign_path, fn node ->
       Transaction.schedule_sign(with_operator(client, node, [schedule_id: schedule_id] ++ opts))
+    end)
+  end
+
+  ## Smart Contract Service
+
+  @doc """
+  Deploy a smart contract. See `Hedera.Transaction.contract_create/1` for opts
+  (`:bytecode` or `:file`, plus `:gas` etc.). New contract id is in the receipt.
+  """
+  @spec create_contract(t(), keyword()) :: {:ok, result()} | {:error, term()}
+  def create_contract(%__MODULE__{} = client, opts \\ []) do
+    execute(client, @contract_create_path, fn node ->
+      Transaction.contract_create(with_operator(client, node, opts))
+    end)
+  end
+
+  @doc """
+  Call a contract method. Opts: `:gas`, `:amount`, `:function_parameters`
+  (ABI-encoded). The return value is in the record, not the receipt.
+  """
+  @spec call_contract(t(), ContractId.t(), keyword()) :: {:ok, result()} | {:error, term()}
+  def call_contract(%__MODULE__{} = client, %ContractId{} = contract, opts \\ []) do
+    execute(client, @contract_call_path, fn node ->
+      Transaction.contract_call(with_operator(client, node, [contract: contract] ++ opts))
     end)
   end
 

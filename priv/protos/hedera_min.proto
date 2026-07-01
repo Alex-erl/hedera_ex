@@ -47,6 +47,15 @@ message ScheduleID {
   int64 scheduleNum = 3;
 }
 
+message ContractID {
+  int64 shardNum = 1;
+  int64 realmNum = 2;
+  oneof contract {
+    int64 contractNum = 3;
+    bytes evm_address = 4;
+  }
+}
+
 message TransactionID {
   Timestamp transactionValidStart = 1;
   AccountID accountID = 2;
@@ -234,6 +243,28 @@ message ScheduleSignTransactionBody {
   ScheduleID scheduleID = 1;
 }
 
+// --- smart contract service -------------------------------------------------
+
+message ContractCreateTransactionBody {
+  oneof initcodeSource {
+    FileID fileID = 1;
+    bytes initcode = 16;
+  }
+  Key adminKey = 3;
+  int64 gas = 4;
+  int64 initialBalance = 5;
+  Duration autoRenewPeriod = 8;
+  bytes constructorParameters = 9;
+  string memo = 13;
+}
+
+message ContractCallTransactionBody {
+  ContractID contractID = 1;
+  int64 gas = 2;
+  int64 amount = 3;
+  bytes functionParameters = 4;
+}
+
 // --- transaction envelope ---------------------------------------------------
 
 message TransactionBody {
@@ -243,6 +274,8 @@ message TransactionBody {
   Duration transactionValidDuration = 4;
   string memo = 6;
   oneof data {
+    ContractCallTransactionBody contractCall = 7;
+    ContractCreateTransactionBody contractCreateInstance = 8;
     FileAppendTransactionBody fileAppend = 16;
     FileCreateTransactionBody fileCreate = 17;
     FileDeleteTransactionBody fileDelete = 18;
@@ -289,6 +322,7 @@ message Transaction {
 
 message TransactionReceipt {
   int32 status = 1;
+  ContractID contractID = 4;
   FileID fileID = 3;
   TopicID topicID = 6;
   uint64 topicSequenceNumber = 7;

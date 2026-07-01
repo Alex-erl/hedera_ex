@@ -2,6 +2,17 @@
 
 ## 0.2.0 (unreleased)
 
+### Smart Contract Service
+
+- `Hedera.Client.create_contract/2` and `call_contract/3`
+  (`Hedera.Transaction.contract_create/1` / `contract_call/1`), with
+  `Hedera.ContractId` and `contract_id` on the receipt. `contract_create`
+  accepts inline `:bytecode` (EVM init) or a bytecode `:file`, plus `:gas`,
+  `:admin_key`, `:constructor_parameters`, `:initial_balance`. **Validated live**:
+  deploy inline bytecode → `SUCCESS` + contract id → call the contract → `SUCCESS`
+  (`contractCreateInstance = 8`, `contractCall = 7`; return values live in the
+  record, not the receipt — reading them is a follow-up).
+
 ### protoc-generated wire layer (migration complete)
 
 - Vendored the subset of the HAPI protobufs `hedera_ex` uses
