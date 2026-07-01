@@ -1,0 +1,116 @@
+syntax = "proto3";
+
+// A minimal, self-contained subset of the Hedera HAPI protobufs — the messages
+// hedera_ex builds and parses today — with the canonical field numbers. Package
+// `hedera.pb` maps to Elixir modules under `Hedera.Pb.*` (kept distinct from the
+// hand-rolled `Hedera.Proto`). This is the seed for migrating the wire layer
+// from hand-rolled encoding to protoc-generated modules; an equivalence test
+// asserts the two produce byte-identical output.
+package hedera.pb;
+
+message Timestamp {
+  int64 seconds = 1;
+  int32 nanos = 2;
+}
+
+message Duration {
+  int64 seconds = 1;
+}
+
+message AccountID {
+  int64 shardNum = 1;
+  int64 realmNum = 2;
+  int64 accountNum = 3;
+}
+
+message TopicID {
+  int64 shardNum = 1;
+  int64 realmNum = 2;
+  int64 topicNum = 3;
+}
+
+message TokenID {
+  int64 shardNum = 1;
+  int64 realmNum = 2;
+  int64 tokenNum = 3;
+}
+
+message TransactionID {
+  Timestamp transactionValidStart = 1;
+  AccountID accountID = 2;
+}
+
+message AccountAmount {
+  AccountID accountID = 1;
+  sint64 amount = 2;
+  bool is_approval = 3;
+}
+
+message TransferList {
+  repeated AccountAmount accountAmounts = 1;
+}
+
+message TokenTransferList {
+  TokenID token = 1;
+  repeated AccountAmount transfers = 2;
+}
+
+message CryptoTransferTransactionBody {
+  TransferList transfers = 1;
+  repeated TokenTransferList tokenTransfers = 2;
+}
+
+message ConsensusSubmitMessageTransactionBody {
+  TopicID topicID = 1;
+  bytes message = 2;
+}
+
+message TransactionBody {
+  TransactionID transactionID = 1;
+  AccountID nodeAccountID = 2;
+  uint64 transactionFee = 3;
+  Duration transactionValidDuration = 4;
+  string memo = 6;
+  oneof data {
+    CryptoTransferTransactionBody cryptoTransfer = 14;
+    ConsensusSubmitMessageTransactionBody consensusSubmitMessage = 27;
+  }
+}
+
+message Key {
+  oneof key {
+    bytes ed25519 = 2;
+    bytes ECDSASecp256k1 = 7;
+  }
+}
+
+message SignaturePair {
+  bytes pubKeyPrefix = 1;
+  oneof signature {
+    bytes ed25519 = 3;
+    bytes ECDSASecp256k1 = 6;
+  }
+}
+
+message SignatureMap {
+  repeated SignaturePair sigPair = 1;
+}
+
+message SignedTransaction {
+  bytes bodyBytes = 1;
+  SignatureMap sigMap = 2;
+}
+
+message Transaction {
+  bytes signedTransactionBytes = 5;
+}
+
+message TransactionReceipt {
+  int32 status = 1;
+  TopicID topicID = 6;
+  uint64 topicSequenceNumber = 7;
+  bytes topicRunningHash = 8;
+  TokenID tokenID = 10;
+  uint64 newTotalSupply = 11;
+  repeated int64 serialNumbers = 14;
+}

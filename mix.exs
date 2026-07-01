@@ -27,6 +27,7 @@ defmodule Hedera.MixProject do
     [
       {:mint, "~> 1.6"},
       {:jason, "~> 1.4"},
+      {:protobuf, "~> 0.14"},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false}
     ]
   end

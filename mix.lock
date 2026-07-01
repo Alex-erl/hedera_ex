@@ -8,4 +8,5 @@
   "makeup_erlang": {:hex, :makeup_erlang, "1.1.0", "835f7e60792e08824cda445639555d7bf1bbbddb1b60b306e33cb6f6db24dc74", [:mix], [{:makeup, "~> 1.0", [hex: :makeup, repo: "hexpm", optional: false]}], "hexpm", "1cd6780fb1dd1a03979abaed0fe82712b0625118fd5257d3ebbf73f960c73c3c"},
   "mint": {:hex, :mint, "1.9.0", "d6f534c2a3e98b2a8cc749b4796eb77e9e3af79a76f96e4c74035a827de0d318", [:mix], [{:castore, "~> 0.1.0 or ~> 1.0", [hex: :castore, repo: "hexpm", optional: true]}, {:hpax, "~> 0.1.1 or ~> 0.2.0 or ~> 1.0", [hex: :hpax, repo: "hexpm", optional: false]}], "hexpm", "007154c7d8c43916aed3c93afd1f11aebbaa9c5ff4b7ba55ebe0d17ee0296042"},
   "nimble_parsec": {:hex, :nimble_parsec, "1.4.2", "8efba0122db06df95bfaa78f791344a89352ba04baedd3849593bfce4d0dc1c6", [:mix], [], "hexpm", "4b21398942dda052b403bbe1da991ccd03a053668d147d53fb8c4e0efe09c973"},
+  "protobuf": {:hex, :protobuf, "0.17.0", "39e24e43c9648e148feba16ed51100b5b2028ea900b55460377b0476f6e10613", [:mix], [{:jason, "~> 1.2", [hex: :jason, repo: "hexpm", optional: true]}], "hexpm", "ca6c91f6f63e2c147b47f03eefd10b80538aa6fc55ff4b12b795efb786b0152f"},
 }

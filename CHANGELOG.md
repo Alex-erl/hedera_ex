@@ -2,6 +2,19 @@
 
 ## 0.2.0 (unreleased)
 
+### protoc-generated wire modules (foundation)
+
+- Vendored a minimal, self-contained subset of the HAPI protobufs
+  (`priv/protos/hedera_min.proto`, canonical field numbers) and generate Elixir
+  modules under `Hedera.Pb.*` via `protoc` + `protoc-gen-elixir`
+  (`priv/protos/generate.sh`). Adds the `protobuf` dependency.
+- An equivalence test proves the generated modules are **wire-compatible with
+  the hand-rolled encoder in both directions** (hand-rolled bytes decode with
+  the generated structs and vice-versa; ZigZag `sint64` and receipts agree) —
+  the safety net for incrementally migrating the wire layer off hand-rolled
+  `Hedera.Proto` calls. (They are not byte-identical: proto3 omits zero-valued
+  fields the hand-rolled encoder emits explicitly; both are valid protobuf.)
+
 ### File Service
 
 - `Hedera.Client.create_file/2`, `append_file/4`, `update_file/3`, `delete_file/2`
