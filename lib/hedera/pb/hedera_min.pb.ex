@@ -24,6 +24,21 @@ defmodule Hedera.Pb.TokenSupplyType do
   field :FINITE, 1
 end
 
+defmodule Hedera.Pb.ResponseType do
+  @moduledoc false
+
+  use Protobuf,
+    enum: true,
+    full_name: "hedera.pb.ResponseType",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  field :ANSWER_ONLY, 0
+  field :ANSWER_STATE_PROOF, 1
+  field :COST_ANSWER, 2
+  field :COST_ANSWER_STATE_PROOF, 3
+end
+
 defmodule Hedera.Pb.Timestamp do
   @moduledoc false
 
@@ -640,4 +655,88 @@ defmodule Hedera.Pb.TransactionReceipt do
   field :newTotalSupply, 11, type: :uint64
   field :scheduleID, 12, type: Hedera.Pb.ScheduleID
   field :serialNumbers, 14, repeated: true, type: :int64
+end
+
+defmodule Hedera.Pb.TransactionResponse do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.TransactionResponse",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  field :nodeTransactionPrecheckCode, 1, type: :int32
+  field :cost, 2, type: :uint64
+end
+
+defmodule Hedera.Pb.QueryHeader do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.QueryHeader",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  field :payment, 1, type: Hedera.Pb.Transaction
+  field :responseType, 2, type: Hedera.Pb.ResponseType, enum: true
+end
+
+defmodule Hedera.Pb.ResponseHeader do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.ResponseHeader",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  field :nodeTransactionPrecheckCode, 1, type: :int32
+  field :responseType, 2, type: Hedera.Pb.ResponseType, enum: true
+  field :cost, 3, type: :uint64
+end
+
+defmodule Hedera.Pb.TransactionGetReceiptQuery do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.TransactionGetReceiptQuery",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  field :header, 1, type: Hedera.Pb.QueryHeader
+  field :transactionID, 2, type: Hedera.Pb.TransactionID
+end
+
+defmodule Hedera.Pb.TransactionGetReceiptResponse do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.TransactionGetReceiptResponse",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  field :header, 1, type: Hedera.Pb.ResponseHeader
+  field :receipt, 2, type: Hedera.Pb.TransactionReceipt
+end
+
+defmodule Hedera.Pb.Query do
+  @moduledoc false
+
+  use Protobuf, full_name: "hedera.pb.Query", protoc_gen_elixir_version: "0.17.0", syntax: :proto3
+
+  oneof :query, 0
+
+  field :transactionGetReceipt, 14, type: Hedera.Pb.TransactionGetReceiptQuery, oneof: 0
+end
+
+defmodule Hedera.Pb.Response do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.Response",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  oneof :response, 0
+
+  field :transactionGetReceipt, 14, type: Hedera.Pb.TransactionGetReceiptResponse, oneof: 0
 end

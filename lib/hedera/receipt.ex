@@ -49,9 +49,11 @@ defmodule Hedera.Receipt do
 
   @doc "Parse a `TransactionReceipt` protobuf message (decoded by `Hedera.Pb`)."
   @spec parse(binary()) :: t()
-  def parse(bytes) when is_binary(bytes) do
-    pb = Hedera.Pb.TransactionReceipt.decode(bytes)
+  def parse(bytes) when is_binary(bytes), do: bytes |> Hedera.Pb.TransactionReceipt.decode() |> from_pb()
 
+  @doc "Map an already-decoded `Hedera.Pb.TransactionReceipt` onto this struct."
+  @spec from_pb(struct()) :: t()
+  def from_pb(%Hedera.Pb.TransactionReceipt{} = pb) do
     %__MODULE__{
       status: pb.status,
       topic_id: from_id(pb.topicID, TopicId, :topicNum),

@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- **gRPC query/response now uses generated modules too** — the free receipt
+  query and the submit pre-check are built/parsed via `Hedera.Pb.Query` /
+  `Hedera.Pb.Response` / `Hedera.Pb.TransactionResponse` (`Hedera.Receipt.from_pb/1`
+  maps the decoded receipt). `Hedera.Proto` is no longer on any live code path.
+  Re-validated live (full network suite).
+- **Read a contract's return value** — `Hedera.MirrorNode.contract_result/2`
+  fetches a call's result from the transaction record (`call_result`, `gas_used`,
+  `error_message`) via the mirror node, the payment-free read path (the value is
+  not in the receipt).
+
 ## 0.2.0 — 2026-07-01
 
 ### Smart Contract Service

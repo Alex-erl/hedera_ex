@@ -5,7 +5,7 @@ defmodule Hedera.MirrorNode do
   which handles writes and receipts.
   """
 
-  alias Hedera.TopicId
+  alias Hedera.{TopicId, TransactionId}
 
   @bases %{
     testnet: "https://testnet.mirrornode.hedera.com",
@@ -24,6 +24,23 @@ defmodule Hedera.MirrorNode do
   @spec transaction(binary(), keyword()) :: {:ok, map()} | {:error, term()}
   def transaction(transaction_id, opts) when is_binary(transaction_id) do
     get("/api/v1/transactions/#{normalize_tx_id(transaction_id)}", opts)
+  end
+
+  @doc """
+  Read a smart-contract call's result — the contract's **return value** (from the
+  transaction record) that isn't in the receipt. Accepts a `TransactionId` or its
+  string form. The returned JSON map includes `"call_result"` (hex-encoded return
+  bytes), `"gas_used"`, `"error_message"` and more. Subject to mirror-node
+  ingestion lag after consensus.
+  """
+  @spec contract_result(TransactionId.t() | binary(), keyword()) :: {:ok, map()} | {:error, term()}
+  def contract_result(tx_id, opts \\ [])
+
+  def contract_result(%TransactionId{} = tx_id, opts),
+    do: contract_result(TransactionId.to_string(tx_id), opts)
+
+  def contract_result(tx_id, opts) when is_binary(tx_id) do
+    get("/api/v1/contracts/results/#{normalize_tx_id(tx_id)}", opts)
   end
 
   # --- internals --------------------------------------------------------------

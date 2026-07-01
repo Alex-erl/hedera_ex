@@ -7,7 +7,7 @@ defmodule Hedera.ClientNetworkTest do
   """
   use ExUnit.Case, async: false
 
-  alias Hedera.{AccountId, Client, ContractId, FileId, PrivateKey, Receipt, ScheduleId, TokenId, TopicId}
+  alias Hedera.{AccountId, Client, ContractId, FileId, MirrorNode, PrivateKey, Receipt, ScheduleId, TokenId, TopicId}
 
   @moduletag :network
   @topic "0.0.9339331"
@@ -273,5 +273,25 @@ defmodule Hedera.ClientNetworkTest do
     # call it: the STOP runtime halts cleanly (no return value)
     assert {:ok, call} = Client.call_contract(client, contract, gas: 100_000)
     await_success!(client, call, "contract call")
+
+    # read the call's result from the record via the mirror node (return values
+    # aren't in the receipt). Poll for mirror-node ingestion lag.
+    result = poll_contract_result(call.transaction_id, 15)
+    assert is_map(result), "no contract result from mirror node"
+    assert Map.has_key?(result, "call_result")
+    assert is_integer(result["gas_used"])
+  end
+
+  defp poll_contract_result(_tx_id, 0), do: nil
+
+  defp poll_contract_result(tx_id, attempts) do
+    case MirrorNode.contract_result(tx_id) do
+      {:ok, result} ->
+        result
+
+      {:error, _} ->
+        Process.sleep(2_000)
+        poll_contract_result(tx_id, attempts - 1)
+    end
   end
 end

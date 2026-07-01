@@ -14,8 +14,8 @@ defmodule Hedera.Client do
     FileId,
     Grpc,
     Network,
+    Pb,
     PrivateKey,
-    Proto,
     Receipt,
     ScheduleId,
     TokenId,
@@ -47,9 +47,6 @@ defmodule Hedera.Client do
   @contract_create_path "/proto.SmartContractService/createContract"
   @contract_call_path "/proto.SmartContractService/contractCallMethod"
   @receipt_path "/proto.CryptoService/getTransactionReceipts"
-
-  @f_receipt_query 14
-  @f_receipt_response 14
 
   # ResponseCodeEnum.BUSY — worth retrying on another node.
   @busy 11
@@ -360,7 +357,7 @@ defmodule Hedera.Client do
 
     case Grpc.unary(node.host, node.port, path, tx) do
       {:ok, response} ->
-        code = Proto.field(Proto.decode(response), 1) || 0
+        code = Pb.TransactionResponse.decode(response).nodeTransactionPrecheckCode
         result = {:ok, %{precheck_code: code, ok?: code == 0, transaction_id: tx_id}}
         # success or a permanent rejection → stop; transient (BUSY) → next node
         if code == 0 or code != @busy, do: result, else: attempt(rest, path, build_fun, result)
@@ -391,22 +388,36 @@ defmodule Hedera.Client do
   end
 
   defp query_receipt(node, tx_id) do
-    receipt_query =
-      Proto.bytes_field(1, <<>>) <> Proto.bytes_field(2, TransactionId.to_proto(tx_id))
+    # a free receipt query: an empty payment with ANSWER_ONLY
+    query = %Pb.Query{
+      query:
+        {:transactionGetReceipt,
+         %Pb.TransactionGetReceiptQuery{
+           header: %Pb.QueryHeader{payment: %Pb.Transaction{}, responseType: :ANSWER_ONLY},
+           transactionID: pb_txid(tx_id)
+         }}
+    }
 
-    query = Proto.bytes_field(@f_receipt_query, receipt_query)
+    with {:ok, response} <- Grpc.unary(node.host, node.port, @receipt_path, encode(Pb.Query, query)) do
+      case Pb.Response.decode(response).response do
+        {:transactionGetReceipt, %Pb.TransactionGetReceiptResponse{receipt: nil, header: header}} ->
+          {:error, {:no_receipt, header && header.nodeTransactionPrecheckCode}}
 
-    with {:ok, response} <- Grpc.unary(node.host, node.port, @receipt_path, query) do
-      inner = Proto.decode(Proto.field(Proto.decode(response), @f_receipt_response) || <<>>)
+        {:transactionGetReceipt, %Pb.TransactionGetReceiptResponse{receipt: receipt}} ->
+          {:ok, Receipt.from_pb(receipt)}
 
-      case Proto.field(inner, 2) do
-        nil ->
-          precheck = Proto.field(Proto.decode(Proto.field(inner, 1) || <<>>), 1) || 0
-          {:error, {:no_receipt, precheck}}
-
-        receipt_bytes ->
-          {:ok, Receipt.parse(receipt_bytes)}
+        _ ->
+          {:error, :unexpected_receipt_response}
       end
     end
   end
+
+  defp pb_txid(%TransactionId{account_id: a, valid_start: ts}) do
+    %Pb.TransactionID{
+      transactionValidStart: %Pb.Timestamp{seconds: ts.seconds, nanos: ts.nanos},
+      accountID: %Pb.AccountID{shardNum: a.shard, realmNum: a.realm, accountNum: a.num}
+    }
+  end
+
+  defp encode(mod, struct), do: struct |> mod.encode() |> IO.iodata_to_binary()
 end

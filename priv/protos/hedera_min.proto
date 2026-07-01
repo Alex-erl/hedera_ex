@@ -332,3 +332,51 @@ message TransactionReceipt {
   ScheduleID scheduleID = 12;
   repeated int64 serialNumbers = 14;
 }
+
+// The pre-check code returned when a transaction is submitted.
+message TransactionResponse {
+  int32 nodeTransactionPrecheckCode = 1;
+  uint64 cost = 2;
+}
+
+// --- query / response envelope (receipt query) ------------------------------
+
+enum ResponseType {
+  ANSWER_ONLY = 0;
+  ANSWER_STATE_PROOF = 1;
+  COST_ANSWER = 2;
+  COST_ANSWER_STATE_PROOF = 3;
+}
+
+message QueryHeader {
+  Transaction payment = 1;
+  ResponseType responseType = 2;
+}
+
+message ResponseHeader {
+  int32 nodeTransactionPrecheckCode = 1;
+  ResponseType responseType = 2;
+  uint64 cost = 3;
+}
+
+message TransactionGetReceiptQuery {
+  QueryHeader header = 1;
+  TransactionID transactionID = 2;
+}
+
+message TransactionGetReceiptResponse {
+  ResponseHeader header = 1;
+  TransactionReceipt receipt = 2;
+}
+
+message Query {
+  oneof query {
+    TransactionGetReceiptQuery transactionGetReceipt = 14;
+  }
+}
+
+message Response {
+  oneof response {
+    TransactionGetReceiptResponse transactionGetReceipt = 14;
+  }
+}
