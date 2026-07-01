@@ -2,18 +2,23 @@
 
 ## 0.2.0 (unreleased)
 
-### protoc-generated wire modules (foundation)
+### protoc-generated wire layer (migration complete)
 
-- Vendored a minimal, self-contained subset of the HAPI protobufs
+- Vendored the subset of the HAPI protobufs `hedera_ex` uses
   (`priv/protos/hedera_min.proto`, canonical field numbers) and generate Elixir
   modules under `Hedera.Pb.*` via `protoc` + `protoc-gen-elixir`
   (`priv/protos/generate.sh`). Adds the `protobuf` dependency.
-- An equivalence test proves the generated modules are **wire-compatible with
-  the hand-rolled encoder in both directions** (hand-rolled bytes decode with
-  the generated structs and vice-versa; ZigZag `sint64` and receipts agree) —
-  the safety net for incrementally migrating the wire layer off hand-rolled
-  `Hedera.Proto` calls. (They are not byte-identical: proto3 omits zero-valued
-  fields the hand-rolled encoder emits explicitly; both are valid protobuf.)
+- **`Hedera.Transaction` now builds and encodes every transaction from generated
+  structs, and `Hedera.Receipt` decodes via the generated `TransactionReceipt`** —
+  hand-rolled field-by-field encoding is gone from the transaction/receipt layer.
+  (The generated encoder is proto3-canonical: it omits zero-valued fields and
+  packs repeated scalars, e.g. NFT `serialNumbers`.)
+- An equivalence test pins the generated modules as wire-compatible with the
+  original hand-rolled encoder in both directions (submit-message bytes,
+  generated↔`Hedera.Proto` decode, ZigZag `sint64`, receipts). The full
+  transaction suite — HCS / Crypto / HTS / NFT / File / Schedule — was
+  **re-validated live on testnet** after the migration (all `SUCCESS`).
+  (`Hedera.Proto` remains for the small gRPC query/response framing.)
 
 ### File Service
 

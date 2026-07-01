@@ -10,6 +10,11 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
+# protoc-gen-elixir is an Erlang escript: it needs `escript`/`erl` and the plugin
+# on PATH. Prepend the mix escripts dir and (on this machine) the Homebrew bin
+# that carries the matching OTP; adjust for other setups.
+export PATH="${HOME}/.mix/escripts:/opt/homebrew/bin:${PATH}"
+
 protoc \
   --plugin=protoc-gen-elixir="${HOME}/.mix/escripts/protoc-gen-elixir" \
   --elixir_out=lib \

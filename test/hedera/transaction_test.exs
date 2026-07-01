@@ -316,8 +316,9 @@ defmodule Hedera.TransactionTest do
       )
 
     wipe = Proto.decode(Proto.field(Proto.decode(Proto.field(decode_signed(tx), 1)), 39))
-    serials = for {4, _w, v} <- wipe, do: v
-    assert serials == [1, 2, 3]
+    # repeated int64 serialNumbers is packed (proto3 canonical): one field-4
+    # length-delimited entry holding concatenated varints.
+    assert Proto.decode_varints(Proto.field(wipe, 4)) == [1, 2, 3]
   end
 
   test "crypto_transfer carries NFT transfers (TokenTransferList.nftTransfers = 3)" do

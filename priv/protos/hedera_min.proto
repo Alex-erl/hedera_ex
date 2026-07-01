@@ -1,12 +1,12 @@
 syntax = "proto3";
 
-// A minimal, self-contained subset of the Hedera HAPI protobufs — the messages
-// hedera_ex builds and parses today — with the canonical field numbers. Package
-// `hedera.pb` maps to Elixir modules under `Hedera.Pb.*` (kept distinct from the
-// hand-rolled `Hedera.Proto`). This is the seed for migrating the wire layer
-// from hand-rolled encoding to protoc-generated modules; an equivalence test
-// asserts the two produce byte-identical output.
+// The subset of the Hedera HAPI protobufs that hedera_ex builds and parses, with
+// the canonical field numbers (all validated live on testnet). Package
+// `hedera.pb` maps to Elixir modules under `Hedera.Pb.*`. Regenerate with
+// priv/protos/generate.sh.
 package hedera.pb;
+
+// --- identifiers & primitives ----------------------------------------------
 
 message Timestamp {
   int64 seconds = 1;
@@ -35,10 +35,35 @@ message TokenID {
   int64 tokenNum = 3;
 }
 
+message FileID {
+  int64 shardNum = 1;
+  int64 realmNum = 2;
+  int64 fileNum = 3;
+}
+
+message ScheduleID {
+  int64 shardNum = 1;
+  int64 realmNum = 2;
+  int64 scheduleNum = 3;
+}
+
 message TransactionID {
   Timestamp transactionValidStart = 1;
   AccountID accountID = 2;
 }
+
+message Key {
+  oneof key {
+    bytes ed25519 = 2;
+    bytes ECDSASecp256k1 = 7;
+  }
+}
+
+message KeyList {
+  repeated Key keys = 1;
+}
+
+// --- crypto transfer --------------------------------------------------------
 
 message AccountAmount {
   AccountID accountID = 1;
@@ -50,9 +75,16 @@ message TransferList {
   repeated AccountAmount accountAmounts = 1;
 }
 
+message NftTransfer {
+  AccountID senderAccountID = 1;
+  AccountID receiverAccountID = 2;
+  int64 serialNumber = 3;
+}
+
 message TokenTransferList {
   TokenID token = 1;
   repeated AccountAmount transfers = 2;
+  repeated NftTransfer nftTransfers = 3;
 }
 
 message CryptoTransferTransactionBody {
@@ -60,10 +92,149 @@ message CryptoTransferTransactionBody {
   repeated TokenTransferList tokenTransfers = 2;
 }
 
+// --- consensus service ------------------------------------------------------
+
+message ConsensusCreateTopicTransactionBody {
+  string memo = 1;
+}
+
 message ConsensusSubmitMessageTransactionBody {
   TopicID topicID = 1;
   bytes message = 2;
 }
+
+// --- token service ----------------------------------------------------------
+
+enum TokenType {
+  FUNGIBLE_COMMON = 0;
+  NON_FUNGIBLE_UNIQUE = 1;
+}
+
+enum TokenSupplyType {
+  INFINITE = 0;
+  FINITE = 1;
+}
+
+message TokenCreateTransactionBody {
+  string name = 1;
+  string symbol = 2;
+  uint32 decimals = 3;
+  uint64 initialSupply = 4;
+  AccountID treasury = 5;
+  Key adminKey = 6;
+  Key kycKey = 7;
+  Key freezeKey = 8;
+  Key wipeKey = 9;
+  Key supplyKey = 10;
+  bool freezeDefault = 11;
+  AccountID autoRenewAccount = 14;
+  Duration autoRenewPeriod = 15;
+  string memo = 16;
+  TokenType tokenType = 17;
+  TokenSupplyType supplyType = 18;
+  int64 maxSupply = 19;
+  Key pauseKey = 22;
+}
+
+message TokenMintTransactionBody {
+  TokenID token = 1;
+  uint64 amount = 2;
+  repeated bytes metadata = 3;
+}
+
+message TokenBurnTransactionBody {
+  TokenID token = 1;
+  uint64 amount = 2;
+  repeated int64 serialNumbers = 3;
+}
+
+message TokenAssociateTransactionBody {
+  AccountID account = 1;
+  repeated TokenID tokens = 2;
+}
+
+message TokenFreezeAccountTransactionBody {
+  TokenID token = 1;
+  AccountID account = 2;
+}
+
+message TokenUnfreezeAccountTransactionBody {
+  TokenID token = 1;
+  AccountID account = 2;
+}
+
+message TokenGrantKycTransactionBody {
+  TokenID token = 1;
+  AccountID account = 2;
+}
+
+message TokenRevokeKycTransactionBody {
+  TokenID token = 1;
+  AccountID account = 2;
+}
+
+message TokenWipeAccountTransactionBody {
+  TokenID token = 1;
+  AccountID account = 2;
+  uint64 amount = 3;
+  repeated int64 serialNumbers = 4;
+}
+
+message TokenPauseTransactionBody {
+  TokenID token = 1;
+}
+
+message TokenUnpauseTransactionBody {
+  TokenID token = 1;
+}
+
+// --- file service -----------------------------------------------------------
+
+message FileCreateTransactionBody {
+  Timestamp expirationTime = 2;
+  KeyList keys = 3;
+  bytes contents = 4;
+  string memo = 8;
+}
+
+message FileAppendTransactionBody {
+  FileID fileID = 2;
+  bytes contents = 4;
+}
+
+message FileUpdateTransactionBody {
+  FileID fileID = 1;
+  Timestamp expirationTime = 2;
+  KeyList keys = 3;
+  bytes contents = 4;
+}
+
+message FileDeleteTransactionBody {
+  FileID fileID = 2;
+}
+
+// --- schedule service -------------------------------------------------------
+
+message SchedulableTransactionBody {
+  uint64 transactionFee = 1;
+  string memo = 2;
+  oneof data {
+    CryptoTransferTransactionBody cryptoTransfer = 9;
+  }
+}
+
+message ScheduleCreateTransactionBody {
+  SchedulableTransactionBody scheduledTransactionBody = 1;
+  string memo = 2;
+  Key adminKey = 3;
+  AccountID payerAccountID = 4;
+}
+
+message ScheduleSignTransactionBody {
+  ScheduleID scheduleID = 1;
+}
+
+// --- transaction envelope ---------------------------------------------------
 
 message TransactionBody {
   TransactionID transactionID = 1;
@@ -72,15 +243,26 @@ message TransactionBody {
   Duration transactionValidDuration = 4;
   string memo = 6;
   oneof data {
+    FileAppendTransactionBody fileAppend = 16;
+    FileCreateTransactionBody fileCreate = 17;
+    FileDeleteTransactionBody fileDelete = 18;
+    FileUpdateTransactionBody fileUpdate = 19;
     CryptoTransferTransactionBody cryptoTransfer = 14;
+    ConsensusCreateTopicTransactionBody consensusCreateTopic = 24;
     ConsensusSubmitMessageTransactionBody consensusSubmitMessage = 27;
-  }
-}
-
-message Key {
-  oneof key {
-    bytes ed25519 = 2;
-    bytes ECDSASecp256k1 = 7;
+    TokenCreateTransactionBody tokenCreation = 29;
+    TokenFreezeAccountTransactionBody tokenFreeze = 31;
+    TokenUnfreezeAccountTransactionBody tokenUnfreeze = 32;
+    TokenGrantKycTransactionBody tokenGrantKyc = 33;
+    TokenRevokeKycTransactionBody tokenRevokeKyc = 34;
+    TokenMintTransactionBody tokenMint = 37;
+    TokenBurnTransactionBody tokenBurn = 38;
+    TokenWipeAccountTransactionBody tokenWipe = 39;
+    TokenAssociateTransactionBody tokenAssociate = 40;
+    ScheduleCreateTransactionBody scheduleCreate = 42;
+    ScheduleSignTransactionBody scheduleSign = 44;
+    TokenPauseTransactionBody token_pause = 46;
+    TokenUnpauseTransactionBody token_unpause = 47;
   }
 }
 
@@ -107,10 +289,12 @@ message Transaction {
 
 message TransactionReceipt {
   int32 status = 1;
+  FileID fileID = 3;
   TopicID topicID = 6;
   uint64 topicSequenceNumber = 7;
   bytes topicRunningHash = 8;
   TokenID tokenID = 10;
   uint64 newTotalSupply = 11;
+  ScheduleID scheduleID = 12;
   repeated int64 serialNumbers = 14;
 }
