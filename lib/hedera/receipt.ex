@@ -6,7 +6,7 @@ defmodule Hedera.Receipt do
   the token's `new_total_supply` (on mint/burn).
   """
 
-  alias Hedera.{Proto, TokenId, TopicId}
+  alias Hedera.{FileId, Proto, ScheduleId, TokenId, TopicId}
 
   # ResponseCodeEnum
   @status_unknown 21
@@ -14,11 +14,13 @@ defmodule Hedera.Receipt do
 
   # TransactionReceipt field numbers
   @f_status 1
+  @f_file_id 3
   @f_topic_id 6
   @f_topic_sequence_number 7
   @f_topic_running_hash 8
   @f_token_id 10
   @f_new_total_supply 11
+  @f_schedule_id 12
   @f_serial_numbers 14
 
   @enforce_keys [:status]
@@ -29,6 +31,8 @@ defmodule Hedera.Receipt do
     :topic_running_hash,
     :token_id,
     :new_total_supply,
+    :file_id,
+    :schedule_id,
     serial_numbers: []
   ]
 
@@ -39,6 +43,8 @@ defmodule Hedera.Receipt do
           topic_running_hash: binary() | nil,
           token_id: TokenId.t() | nil,
           new_total_supply: non_neg_integer() | nil,
+          file_id: FileId.t() | nil,
+          schedule_id: ScheduleId.t() | nil,
           serial_numbers: [integer()]
         }
 
@@ -62,8 +68,17 @@ defmodule Hedera.Receipt do
       topic_running_hash: Proto.field(fields, @f_topic_running_hash),
       token_id: parse_token_id(Proto.field(fields, @f_token_id)),
       new_total_supply: Proto.field(fields, @f_new_total_supply),
+      file_id: parse_triple(Proto.field(fields, @f_file_id), FileId),
+      schedule_id: parse_triple(Proto.field(fields, @f_schedule_id), ScheduleId),
       serial_numbers: parse_serials(fields)
     }
+  end
+
+  defp parse_triple(nil, _mod), do: nil
+
+  defp parse_triple(bytes, mod) do
+    f = Proto.decode(bytes)
+    struct(mod, shard: Proto.field(f, 1) || 0, realm: Proto.field(f, 2) || 0, num: Proto.field(f, 3) || 0)
   end
 
   # `repeated int64 serialNumbers = 14` (NFT mint). Handle both proto3-packed

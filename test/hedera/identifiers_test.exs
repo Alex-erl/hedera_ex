@@ -1,7 +1,7 @@
 defmodule Hedera.IdentifiersTest do
   use ExUnit.Case, async: true
 
-  alias Hedera.{AccountId, Timestamp, TokenId, TopicId}
+  alias Hedera.{AccountId, FileId, ScheduleId, Timestamp, TokenId, TopicId}
 
   test "AccountId parses, formats, and encodes" do
     a = AccountId.parse("0.0.8260469")
@@ -22,6 +22,16 @@ defmodule Hedera.IdentifiersTest do
     assert t == %TokenId{shard: 0, realm: 0, num: 1_234_567}
     assert TokenId.to_string(t) == "0.0.1234567"
     assert <<0x08, 0x00, 0x10, 0x00, 0x18, _::binary>> = TokenId.to_proto(t)
+  end
+
+  test "FileId and ScheduleId parse, format, and encode" do
+    f = FileId.parse("0.0.111")
+    assert FileId.to_string(f) == "0.0.111"
+    assert <<0x08, 0x00, 0x10, 0x00, 0x18, _::binary>> = FileId.to_proto(f)
+
+    s = ScheduleId.parse("0.0.222")
+    assert ScheduleId.to_string(s) == "0.0.222"
+    assert <<0x08, 0x00, 0x10, 0x00, 0x18, _::binary>> = ScheduleId.to_proto(s)
   end
 
   test "Timestamp formats with 9-digit nanos and encodes" do

@@ -16,9 +16,12 @@ defmodule Hedera.Transaction do
   alias Hedera.{
     AccountId,
     Duration,
+    FileId,
     Proto,
     PrivateKey,
     PublicKey,
+    ScheduleId,
+    Timestamp,
     TokenId,
     TopicId,
     TransactionId
@@ -38,9 +41,17 @@ defmodule Hedera.Transaction do
   @f_valid_duration 4
   @f_memo 6
   # data oneof
+  @f_file_append 16
+  @f_file_create 17
+  @f_file_delete 18
+  @f_file_update 19
   @f_crypto_transfer 14
   @f_consensus_create_topic 24
   @f_consensus_submit_message 27
+  @f_schedule_create 42
+  @f_schedule_sign 44
+  # SchedulableTransactionBody data oneof (distinct numbering from TransactionBody)
+  @f_schedulable_crypto_transfer 9
   @f_token_creation 29
   @f_token_freeze 31
   @f_token_unfreeze 32
@@ -97,6 +108,12 @@ defmodule Hedera.Transaction do
   """
   @spec crypto_transfer(keyword()) :: build_result()
   def crypto_transfer(opts) do
+    build(opts, @f_crypto_transfer, crypto_transfer_body(opts))
+  end
+
+  # The bare CryptoTransferTransactionBody bytes (no TransactionBody wrapper);
+  # reused when scheduling a transfer.
+  defp crypto_transfer_body(opts) do
     hbar = Keyword.get(opts, :transfers, [])
     token_transfers = Keyword.get(opts, :token_transfers, [])
     nft_transfers = Keyword.get(opts, :nft_transfers, [])
@@ -123,7 +140,7 @@ defmodule Hedera.Transaction do
         Proto.bytes_field(2, ttl)
       end)
 
-    build(opts, @f_crypto_transfer, hbar_field <> token_fields <> nft_fields)
+    hbar_field <> token_fields <> nft_fields
   end
 
   @doc """
@@ -258,7 +275,100 @@ defmodule Hedera.Transaction do
   @spec token_unpause(keyword()) :: build_result()
   def token_unpause(opts), do: build(opts, @f_token_unpause, token_body(opts))
 
+  # --- File Service -----------------------------------------------------------
+
+  @doc """
+  Build + sign a `fileCreate`. Opts: `:contents` (bytes), `:keys` (a list of
+  `PublicKey`s controlling the file — defaults to the operator's key, making it
+  mutable), `:expiration_seconds` (absolute unix seconds; default ~90 days out),
+  `:file_memo`. The new file id is returned in the receipt.
+  """
+  @spec file_create(keyword()) :: build_result()
+  def file_create(opts) do
+    keys = opts[:keys] || [PrivateKey.public_key(fetch!(opts, :operator_key))]
+    expiry = opts[:expiration_seconds] || unix_now() + @default_auto_renew_seconds
+
+    inner =
+      Proto.bytes_field(2, Timestamp.to_proto(%Timestamp{seconds: expiry, nanos: 0})) <>
+        Proto.bytes_field(3, key_list(keys)) <>
+        Proto.bytes_field(4, Keyword.get(opts, :contents, "")) <>
+        maybe_string(8, opts[:file_memo])
+
+    build(opts, @f_file_create, inner)
+  end
+
+  @doc "Build + sign a `fileAppend`. Required: `:file`, `:contents`. Needs the file's key(s)."
+  @spec file_append(keyword()) :: build_result()
+  def file_append(opts) do
+    inner =
+      Proto.bytes_field(2, FileId.to_proto(fetch!(opts, :file))) <>
+        Proto.bytes_field(4, fetch!(opts, :contents))
+
+    build(opts, @f_file_append, inner)
+  end
+
+  @doc """
+  Build + sign a `fileUpdate`. Required: `:file`. Optional: `:contents`, `:keys`,
+  `:expiration_seconds`. Needs the file's key(s).
+  """
+  @spec file_update(keyword()) :: build_result()
+  def file_update(opts) do
+    inner =
+      Proto.bytes_field(1, FileId.to_proto(fetch!(opts, :file))) <>
+        maybe_expiry(2, opts[:expiration_seconds]) <>
+        maybe_key_list(3, opts[:keys]) <>
+        maybe_string(4, opts[:contents])
+
+    build(opts, @f_file_update, inner)
+  end
+
+  @doc "Build + sign a `fileDelete`. Required: `:file`. Needs the file's key(s)."
+  @spec file_delete(keyword()) :: build_result()
+  def file_delete(opts) do
+    build(opts, @f_file_delete, Proto.bytes_field(2, FileId.to_proto(fetch!(opts, :file))))
+  end
+
+  # --- Schedule Service -------------------------------------------------------
+
+  @doc """
+  Build + sign a `scheduleCreate` wrapping an HBAR/token transfer. Transfer opts
+  (`:transfers`, `:token_transfers`, `:nft_transfers`) describe the *scheduled*
+  transaction. Optional: `:admin_key`, `:schedule_memo`. The scheduled transfer
+  executes once it has collected all required signatures (from this create's
+  signers and later `scheduleSign`s). Returns the schedule id in the receipt.
+  """
+  @spec schedule_create(keyword()) :: build_result()
+  def schedule_create(opts) do
+    # SchedulableTransactionBody { cryptoTransfer = 9 }
+    schedulable = Proto.bytes_field(@f_schedulable_crypto_transfer, crypto_transfer_body(opts))
+
+    inner =
+      Proto.bytes_field(1, schedulable) <>
+        maybe_string(2, opts[:schedule_memo]) <>
+        maybe_key(3, opts[:admin_key])
+
+    build(opts, @f_schedule_create, inner)
+  end
+
+  @doc "Build + sign a `scheduleSign`. Required: `:schedule_id`. Adds this tx's signers to the schedule."
+  @spec schedule_sign(keyword()) :: build_result()
+  def schedule_sign(opts) do
+    build(opts, @f_schedule_sign, Proto.bytes_field(1, ScheduleId.to_proto(fetch!(opts, :schedule_id))))
+  end
+
   # --- internals --------------------------------------------------------------
+
+  # KeyList { repeated Key keys = 1 }
+  defp key_list(keys), do: Enum.map_join(keys, "", &Proto.bytes_field(1, PublicKey.to_key_proto(&1)))
+
+  defp maybe_key_list(_field, nil), do: <<>>
+  defp maybe_key_list(field, keys), do: Proto.bytes_field(field, key_list(keys))
+
+  defp maybe_expiry(_field, nil), do: <<>>
+  defp maybe_expiry(field, seconds),
+    do: Proto.bytes_field(field, Timestamp.to_proto(%Timestamp{seconds: seconds, nanos: 0}))
+
+  defp unix_now, do: System.system_time(:second)
 
   # { token = 1 } — pause/unpause bodies.
   defp token_body(opts), do: Proto.bytes_field(1, TokenId.to_proto(fetch!(opts, :token)))

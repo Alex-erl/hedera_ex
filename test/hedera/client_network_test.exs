@@ -7,7 +7,7 @@ defmodule Hedera.ClientNetworkTest do
   """
   use ExUnit.Case, async: false
 
-  alias Hedera.{AccountId, Client, PrivateKey, Receipt, TokenId, TopicId}
+  alias Hedera.{AccountId, Client, FileId, PrivateKey, Receipt, ScheduleId, TokenId, TopicId}
 
   @moduletag :network
   @topic "0.0.9339331"
@@ -217,5 +217,43 @@ defmodule Hedera.ClientNetworkTest do
     # wipe the NFT serial back off the client (wipe key)
     assert {:ok, wipe} = Client.wipe_token(client, token, client_id, serials: [1])
     await_success!(client, wipe, "wipe")
+  end
+
+  test "File Service: create -> append -> update -> delete" do
+    {_operator_id, _operator_key, client} = operator()
+
+    assert {:ok, create} = Client.create_file(client, contents: "trust-anchor-v1", file_memo: "tl")
+    file = await_success!(client, create, "file create").file_id
+    assert %FileId{} = file
+
+    assert {:ok, append} = Client.append_file(client, file, " + more")
+    await_success!(client, append, "file append")
+
+    assert {:ok, update} = Client.update_file(client, file, contents: "trust-anchor-v2")
+    await_success!(client, update, "file update")
+
+    assert {:ok, delete} = Client.delete_file(client, file)
+    await_success!(client, delete, "file delete")
+  end
+
+  test "Schedule Service: create a pending transfer, then sign it to execute" do
+    {operator_id, _operator_key, client} = operator()
+    client_id = AccountId.parse(System.fetch_env!("CLIENT_ID"))
+    client_key = PrivateKey.from_string_ed25519(System.fetch_env!("CLIENT_KEY"))
+
+    # scheduled transfer debits the client (1 tinybar) → needs the CLIENT's
+    # signature, which the operator-created schedule does not yet have → pending
+    assert {:ok, create} =
+             Client.create_schedule(client,
+               transfers: [{client_id, -1}, {operator_id, 1}],
+               schedule_memo: "tl-scheduled"
+             )
+
+    r = await_success!(client, create, "schedule create")
+    assert %ScheduleId{} = schedule = r.schedule_id
+
+    # the client adds its signature → the scheduled transfer executes
+    assert {:ok, sign} = Client.sign_schedule(client, schedule, signers: [client_key])
+    await_success!(client, sign, "schedule sign")
   end
 end

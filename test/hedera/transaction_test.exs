@@ -1,7 +1,7 @@
 defmodule Hedera.TransactionTest do
   use ExUnit.Case, async: true
 
-  alias Hedera.{AccountId, PrivateKey, PublicKey, Proto, TokenId, TopicId, Transaction}
+  alias Hedera.{AccountId, FileId, PrivateKey, PublicKey, Proto, ScheduleId, TokenId, TopicId, Transaction}
 
   defp decode_signed(tx) do
     # Transaction { signedTransactionBytes = 5 } -> SignedTransaction
@@ -340,6 +340,86 @@ defmodule Hedera.TransactionTest do
     assert is_binary(Proto.field(nft, 1))
     assert is_binary(Proto.field(nft, 2))
     assert Proto.field(nft, 3) == 7
+  end
+
+  test "file_create encodes fileCreate (17): expiry(2), KeyList(3), contents(4)" do
+    key = PrivateKey.generate_ecdsa()
+    pub = PrivateKey.public_key(key)
+
+    %{transaction: tx} =
+      Transaction.file_create(
+        operator_id: AccountId.parse("0.0.2"),
+        operator_key: key,
+        node_account_id: AccountId.parse("0.0.3"),
+        contents: "trust-anchor-bytes",
+        file_memo: "tl"
+      )
+
+    fc = Proto.decode(Proto.field(Proto.decode(Proto.field(decode_signed(tx), 1)), 17))
+    assert is_binary(Proto.field(fc, 2))
+    # KeyList { keys = 1 } → default is the operator's key (ECDSA in Key field 7)
+    key_in_list = Proto.decode(Proto.field(Proto.decode(Proto.field(fc, 3)), 1))
+    assert Proto.field(key_in_list, 7) == PublicKey.to_bytes(pub)
+    assert Proto.field(fc, 4) == "trust-anchor-bytes"
+    assert Proto.field(fc, 8) == "tl"
+  end
+
+  test "file append/update/delete carry fileID at the right field numbers" do
+    key = PrivateKey.generate_ecdsa()
+    base = [operator_id: AccountId.parse("0.0.2"), operator_key: key, node_account_id: AccountId.parse("0.0.3")]
+    file = FileId.parse("0.0.111")
+
+    %{transaction: tx} = Transaction.file_append(base ++ [file: file, contents: "more"])
+    fa = Proto.decode(Proto.field(Proto.decode(Proto.field(decode_signed(tx), 1)), 16))
+    assert is_binary(Proto.field(fa, 2))
+    assert Proto.field(fa, 4) == "more"
+
+    %{transaction: tx} = Transaction.file_update(base ++ [file: file, contents: "new"])
+    fu = Proto.decode(Proto.field(Proto.decode(Proto.field(decode_signed(tx), 1)), 19))
+    assert is_binary(Proto.field(fu, 1))
+    assert Proto.field(fu, 4) == "new"
+
+    %{transaction: tx} = Transaction.file_delete(base ++ [file: file])
+    fd = Proto.decode(Proto.field(Proto.decode(Proto.field(decode_signed(tx), 1)), 18))
+    assert is_binary(Proto.field(fd, 2))
+  end
+
+  test "schedule_create wraps a SchedulableTransactionBody with cryptoTransfer at field 9" do
+    key = PrivateKey.generate_ecdsa()
+    from = AccountId.parse("0.0.8260469")
+    to = AccountId.parse("0.0.98")
+
+    %{transaction: tx} =
+      Transaction.schedule_create(
+        operator_id: from,
+        operator_key: key,
+        node_account_id: AccountId.parse("0.0.3"),
+        transfers: [{from, -1}, {to, 1}],
+        schedule_memo: "sched"
+      )
+
+    sc = Proto.decode(Proto.field(Proto.decode(Proto.field(decode_signed(tx), 1)), 42))
+    assert Proto.field(sc, 2) == "sched"
+    # scheduledTransactionBody = 1 → SchedulableTransactionBody { cryptoTransfer = 9 }
+    schedulable = Proto.decode(Proto.field(sc, 1))
+    crypto = Proto.decode(Proto.field(schedulable, 9))
+    # CryptoTransferTransactionBody { transfers = 1 } present
+    assert is_binary(Proto.field(crypto, 1))
+  end
+
+  test "schedule_sign carries the scheduleID (field 44 / scheduleID=1)" do
+    key = PrivateKey.generate_ecdsa()
+
+    %{transaction: tx} =
+      Transaction.schedule_sign(
+        operator_id: AccountId.parse("0.0.2"),
+        operator_key: key,
+        node_account_id: AccountId.parse("0.0.3"),
+        schedule_id: ScheduleId.parse("0.0.555")
+      )
+
+    ss = Proto.decode(Proto.field(Proto.decode(Proto.field(decode_signed(tx), 1)), 44))
+    assert is_binary(Proto.field(ss, 1))
   end
 
   test "create_topic encodes a consensusCreateTopic body (field 24)" do

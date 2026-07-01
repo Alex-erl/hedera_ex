@@ -2,6 +2,21 @@
 
 ## 0.2.0 (unreleased)
 
+### File Service
+
+- `Hedera.Client.create_file/2`, `append_file/4`, `update_file/3`, `delete_file/2`
+  (`Hedera.Transaction.file_create/1` etc.), with `Hedera.FileId` and `file_id` on the receipt.
+  Files carry a `KeyList` (defaults to the operator's key → mutable). **Validated live**:
+  create → append → update → delete, all `SUCCESS`.
+
+### Schedule Service
+
+- `Hedera.Client.create_schedule/2` (a scheduled HBAR/token transfer) and `sign_schedule/3`
+  (`Hedera.Transaction.schedule_create/1` / `schedule_sign/1`), with `Hedera.ScheduleId` and
+  `schedule_id` on the receipt. The scheduled transaction is a `SchedulableTransactionBody` — note
+  its data-oneof numbering differs from `TransactionBody` (`cryptoTransfer = 9`). **Validated live**:
+  create a transfer pending on a second signer → `sign_schedule` → it executes.
+
 ### Token Service — NFTs & token management
 
 - **NFTs** — `token_create` with `token_type: :nft` (NON_FUNGIBLE_UNIQUE); `token_mint` with

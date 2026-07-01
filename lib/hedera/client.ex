@@ -10,11 +10,13 @@ defmodule Hedera.Client do
 
   alias Hedera.{
     AccountId,
+    FileId,
     Grpc,
     Network,
     PrivateKey,
     Proto,
     Receipt,
+    ScheduleId,
     TokenId,
     TopicId,
     Transaction,
@@ -35,6 +37,12 @@ defmodule Hedera.Client do
   @token_wipe_path "/proto.TokenService/wipeTokenAccount"
   @token_pause_path "/proto.TokenService/pauseToken"
   @token_unpause_path "/proto.TokenService/unpauseToken"
+  @file_create_path "/proto.FileService/createFile"
+  @file_append_path "/proto.FileService/appendContent"
+  @file_update_path "/proto.FileService/updateFile"
+  @file_delete_path "/proto.FileService/deleteFile"
+  @schedule_create_path "/proto.ScheduleService/createSchedule"
+  @schedule_sign_path "/proto.ScheduleService/signSchedule"
   @receipt_path "/proto.CryptoService/getTransactionReceipts"
 
   @f_receipt_query 14
@@ -232,6 +240,58 @@ defmodule Hedera.Client do
   def unpause_token(%__MODULE__{} = client, %TokenId{} = token, opts \\ []) do
     execute(client, @token_unpause_path, fn node ->
       Transaction.token_unpause(with_operator(client, node, [token: token] ++ opts))
+    end)
+  end
+
+  ## File Service
+
+  @doc "Create a file. See `Hedera.Transaction.file_create/1` for opts. New file id is in the receipt."
+  @spec create_file(t(), keyword()) :: {:ok, result()} | {:error, term()}
+  def create_file(%__MODULE__{} = client, opts \\ []) do
+    execute(client, @file_create_path, fn node ->
+      Transaction.file_create(with_operator(client, node, opts))
+    end)
+  end
+
+  @doc "Append `contents` to `file` (needs the file's key)."
+  @spec append_file(t(), FileId.t(), binary(), keyword()) :: {:ok, result()} | {:error, term()}
+  def append_file(%__MODULE__{} = client, %FileId{} = file, contents, opts \\ []) do
+    execute(client, @file_append_path, fn node ->
+      Transaction.file_append(with_operator(client, node, [file: file, contents: contents] ++ opts))
+    end)
+  end
+
+  @doc "Update `file` (opts: `:contents`, `:keys`, `:expiration_seconds`). Needs the file's key."
+  @spec update_file(t(), FileId.t(), keyword()) :: {:ok, result()} | {:error, term()}
+  def update_file(%__MODULE__{} = client, %FileId{} = file, opts \\ []) do
+    execute(client, @file_update_path, fn node ->
+      Transaction.file_update(with_operator(client, node, [file: file] ++ opts))
+    end)
+  end
+
+  @doc "Delete `file` (needs the file's key)."
+  @spec delete_file(t(), FileId.t(), keyword()) :: {:ok, result()} | {:error, term()}
+  def delete_file(%__MODULE__{} = client, %FileId{} = file, opts \\ []) do
+    execute(client, @file_delete_path, fn node ->
+      Transaction.file_delete(with_operator(client, node, [file: file] ++ opts))
+    end)
+  end
+
+  ## Schedule Service
+
+  @doc "Create a scheduled transfer. See `Hedera.Transaction.schedule_create/1`. Schedule id is in the receipt."
+  @spec create_schedule(t(), keyword()) :: {:ok, result()} | {:error, term()}
+  def create_schedule(%__MODULE__{} = client, opts \\ []) do
+    execute(client, @schedule_create_path, fn node ->
+      Transaction.schedule_create(with_operator(client, node, opts))
+    end)
+  end
+
+  @doc "Add the operator's (and any `:signers`') signature to a pending schedule."
+  @spec sign_schedule(t(), ScheduleId.t(), keyword()) :: {:ok, result()} | {:error, term()}
+  def sign_schedule(%__MODULE__{} = client, %ScheduleId{} = schedule_id, opts \\ []) do
+    execute(client, @schedule_sign_path, fn node ->
+      Transaction.schedule_sign(with_operator(client, node, [schedule_id: schedule_id] ++ opts))
     end)
   end
 
