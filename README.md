@@ -5,8 +5,8 @@
 [![License: MIT](https://img.shields.io/hexpm/l/hedera_ex.svg)](https://github.com/Alex-erl/hedera_ex/blob/main/LICENSE)
 
 A **native Elixir SDK for the [Hedera](https://hedera.com) network** — keys, identifiers,
-protobuf encoding, gRPC, and the Consensus, Crypto (HBAR transfers) and Token (HTS) services.
-No NIFs for the core crypto; no Java/Python bridge.
+protoc-generated protobuf, gRPC, and the Consensus, Crypto, Token (incl. NFTs), File,
+Schedule and Smart Contract services. No NIFs for the core crypto; no Java/Python bridge.
 
 ## Installation
 
@@ -14,7 +14,7 @@ Add `hedera_ex` to your deps in `mix.exs`:
 
 ```elixir
 def deps do
-  [{:hedera_ex, "~> 0.1.0"}]
+  [{:hedera_ex, "~> 0.2.0"}]
 end
 ```
 
@@ -37,12 +37,16 @@ pure, tested Elixir.
 | ECDSA secp256k1 keys | same | Hedera convention: **Keccak-256 prehash**, canonical **low-S** 64-byte `r‖s`, 33-byte compressed public key. |
 | Identifiers | `Hedera.AccountId`, `Hedera.TopicId`, `Hedera.Timestamp`, `Hedera.TransactionId`, `Hedera.Duration` | Parse / format / protobuf-encode. |
 | Protobuf | `Hedera.Proto` | Minimal proto3 wire encoder + decoder. |
-| Transactions | `Hedera.Transaction` | Encode + sign `TransactionBody` → `SignedTransaction` → `Transaction`. **Multi-signature** via `:signers`. |
-| Consensus Service | `Hedera.Client.submit_message/3`, `create_topic/2` | Create topics, submit messages (HCS). **Verified live.** |
-| Crypto Service | `Hedera.Client.transfer_hbar/3` | HBAR transfers (`sint64`/ZigZag amounts, must net to zero). **Verified live.** |
-| Token Service (HTS) | `Hedera.Client.create_token/2`, `mint_token/4`, `burn_token/4`, `associate_token/4`, `transfer_token/4` | Fungible token create / mint / burn / associate / transfer; `Key` encoding. **Full lifecycle verified live.** |
-| gRPC | `Hedera.Grpc`, `Hedera.Client`, `Hedera.Network` | Unary calls over HTTP/2 (h2c); multi-node address book + cross-node retry on transient errors. |
-| Receipts | `Hedera.Client.transaction_receipt/3`, `Hedera.Receipt` | Free gRPC `getTransactionReceipts` poll → status, topic sequence, running hash, token id, new total supply. **Verified live.** |
+| Wire encoding | `Hedera.Pb.*` (protoc-generated) | `Hedera.Transaction` builds every body as a generated struct; `priv/protos` + `generate.sh`. |
+| Transactions | `Hedera.Transaction` | Build + sign `TransactionBody` → `SignedTransaction` → `Transaction`. **Multi-signature** via `:signers`. |
+| Consensus Service | `submit_message/3`, `create_topic/2` | Create topics, submit messages (HCS). **Verified live.** |
+| Crypto Service | `transfer_hbar/3` | HBAR transfers (`sint64`/ZigZag; must net to zero). **Verified live.** |
+| Token Service (HTS) | `create_token/2`, `mint_token/4`, `burn_token/4`, `associate_token/4`, `transfer_token/4`, `transfer_nft/4`, `freeze_token`/`unfreeze_token`, `grant_kyc`/`revoke_kyc`, `wipe_token`, `pause_token`/`unpause_token` | Fungible **and NFT** create / mint (metadata) / transfer, plus freeze / KYC / wipe / pause management. **Full lifecycle verified live.** |
+| File Service | `create_file/2`, `append_file/4`, `update_file/3`, `delete_file/2` | **Verified live.** |
+| Schedule Service | `create_schedule/2`, `sign_schedule/3` | Scheduled transfers + multi-sig collection. **Verified live.** |
+| Smart Contract Service | `create_contract/2`, `call_contract/3` | Deploy (inline bytecode or file) + call. **Verified live.** |
+| gRPC | `Hedera.Grpc`, `Hedera.Client`, `Hedera.Network` | Unary calls over HTTP/2 (h2c); multi-node address book + cross-node retry. |
+| Receipts | `transaction_receipt/3`, `Hedera.Receipt` | Poll `getTransactionReceipts` → status, topic seq / hash, token / file / schedule / contract id, new total supply, NFT serials. **Verified live.** |
 | Mirror node | `Hedera.MirrorNode` | REST reads (topic messages, transactions). |
 
 ```elixir

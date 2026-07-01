@@ -1,7 +1,7 @@
 defmodule Hedera.MixProject do
   use Mix.Project
 
-  @version "0.1.0"
+  @version "0.2.0"
   @source_url "https://github.com/Alex-erl/hedera_ex"
 
   def project do
@@ -42,7 +42,7 @@ defmodule Hedera.MixProject do
       licenses: ["MIT"],
       links: %{"GitHub" => @source_url},
       maintainers: ["asv"],
-      files: ~w(lib mix.exs README.md LICENSE CHANGELOG.md)
+      files: ~w(lib priv mix.exs README.md LICENSE CHANGELOG.md)
     ]
   end
 
