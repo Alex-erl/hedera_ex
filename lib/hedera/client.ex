@@ -27,6 +27,8 @@ defmodule Hedera.Client do
   @submit_path "/proto.ConsensusService/submitMessage"
   @create_path "/proto.ConsensusService/createTopic"
   @transfer_path "/proto.CryptoService/cryptoTransfer"
+  @approve_allowance_path "/proto.CryptoService/approveAllowances"
+  @delete_allowance_path "/proto.CryptoService/deleteAllowances"
   @token_create_path "/proto.TokenService/createToken"
   @token_mint_path "/proto.TokenService/mintToken"
   @token_burn_path "/proto.TokenService/burnToken"
@@ -240,6 +242,29 @@ defmodule Hedera.Client do
   def unpause_token(%__MODULE__{} = client, %TokenId{} = token, opts \\ []) do
     execute(client, @token_unpause_path, fn node ->
       Transaction.token_unpause(with_operator(client, node, [token: token] ++ opts))
+    end)
+  end
+
+  ## Allowances (delegated spend)
+
+  @doc """
+  Approve allowances so a spender can move the owner's assets without the owner's
+  key. See `Hedera.Transaction.approve_allowance/1` (`:hbar_allowances`,
+  `:token_allowances`, `:nft_allowances`). Owners other than the operator must
+  sign — pass their keys via `signers:` in `opts`.
+  """
+  @spec approve_allowance(t(), keyword()) :: {:ok, result()} | {:error, term()}
+  def approve_allowance(%__MODULE__{} = client, opts \\ []) do
+    execute(client, @approve_allowance_path, fn node ->
+      Transaction.approve_allowance(with_operator(client, node, opts))
+    end)
+  end
+
+  @doc "Delete NFT-serial allowances. See `Hedera.Transaction.delete_nft_allowance/1` (`:nft_allowances`)."
+  @spec delete_nft_allowance(t(), keyword()) :: {:ok, result()} | {:error, term()}
+  def delete_nft_allowance(%__MODULE__{} = client, opts \\ []) do
+    execute(client, @delete_allowance_path, fn node ->
+      Transaction.delete_nft_allowance(with_operator(client, node, opts))
     end)
   end
 

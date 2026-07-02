@@ -177,6 +177,17 @@ defmodule Hedera.Pb.KeyList do
   field :keys, 1, repeated: true, type: Hedera.Pb.Key
 end
 
+defmodule Hedera.Pb.BoolValue do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.BoolValue",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  field :value, 1, type: :bool
+end
+
 defmodule Hedera.Pb.AccountAmount do
   @moduledoc false
 
@@ -212,6 +223,87 @@ defmodule Hedera.Pb.NftTransfer do
   field :senderAccountID, 1, type: Hedera.Pb.AccountID
   field :receiverAccountID, 2, type: Hedera.Pb.AccountID
   field :serialNumber, 3, type: :int64
+  field :is_approval, 4, type: :bool, json_name: "isApproval"
+end
+
+defmodule Hedera.Pb.CryptoAllowance do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.CryptoAllowance",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  field :owner, 1, type: Hedera.Pb.AccountID
+  field :spender, 2, type: Hedera.Pb.AccountID
+  field :amount, 3, type: :int64
+end
+
+defmodule Hedera.Pb.TokenAllowance do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.TokenAllowance",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  field :tokenId, 1, type: Hedera.Pb.TokenID
+  field :owner, 2, type: Hedera.Pb.AccountID
+  field :spender, 3, type: Hedera.Pb.AccountID
+  field :amount, 4, type: :int64
+end
+
+defmodule Hedera.Pb.NftAllowance do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.NftAllowance",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  field :tokenId, 1, type: Hedera.Pb.TokenID
+  field :owner, 2, type: Hedera.Pb.AccountID
+  field :spender, 3, type: Hedera.Pb.AccountID
+  field :serial_numbers, 4, repeated: true, type: :int64, json_name: "serialNumbers"
+  field :approved_for_all, 5, type: Hedera.Pb.BoolValue, json_name: "approvedForAll"
+  field :delegating_spender, 6, type: Hedera.Pb.AccountID, json_name: "delegatingSpender"
+end
+
+defmodule Hedera.Pb.NftRemoveAllowance do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.NftRemoveAllowance",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  field :token_id, 1, type: Hedera.Pb.TokenID, json_name: "tokenId"
+  field :owner, 2, type: Hedera.Pb.AccountID
+  field :serial_numbers, 3, repeated: true, type: :int64, json_name: "serialNumbers"
+end
+
+defmodule Hedera.Pb.CryptoApproveAllowanceTransactionBody do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.CryptoApproveAllowanceTransactionBody",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  field :cryptoAllowances, 1, repeated: true, type: Hedera.Pb.CryptoAllowance
+  field :nftAllowances, 2, repeated: true, type: Hedera.Pb.NftAllowance
+  field :tokenAllowances, 3, repeated: true, type: Hedera.Pb.TokenAllowance
+end
+
+defmodule Hedera.Pb.CryptoDeleteAllowanceTransactionBody do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.CryptoDeleteAllowanceTransactionBody",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  field :nftAllowances, 2, repeated: true, type: Hedera.Pb.NftRemoveAllowance
 end
 
 defmodule Hedera.Pb.TokenTransferList do
@@ -554,6 +646,12 @@ defmodule Hedera.Pb.TransactionBody do
   field :memo, 6, type: :string
   field :contractCall, 7, type: Hedera.Pb.ContractCallTransactionBody, oneof: 0
   field :contractCreateInstance, 8, type: Hedera.Pb.ContractCreateTransactionBody, oneof: 0
+
+  field :cryptoApproveAllowance, 48,
+    type: Hedera.Pb.CryptoApproveAllowanceTransactionBody,
+    oneof: 0
+
+  field :cryptoDeleteAllowance, 49, type: Hedera.Pb.CryptoDeleteAllowanceTransactionBody, oneof: 0
   field :fileAppend, 16, type: Hedera.Pb.FileAppendTransactionBody, oneof: 0
   field :fileCreate, 17, type: Hedera.Pb.FileCreateTransactionBody, oneof: 0
   field :fileDelete, 18, type: Hedera.Pb.FileDeleteTransactionBody, oneof: 0

@@ -72,6 +72,11 @@ message KeyList {
   repeated Key keys = 1;
 }
 
+// google.protobuf.BoolValue equivalent (self-contained).
+message BoolValue {
+  bool value = 1;
+}
+
 // --- crypto transfer --------------------------------------------------------
 
 message AccountAmount {
@@ -88,6 +93,47 @@ message NftTransfer {
   AccountID senderAccountID = 1;
   AccountID receiverAccountID = 2;
   int64 serialNumber = 3;
+  bool is_approval = 4;
+}
+
+// --- allowances (delegated spend) -------------------------------------------
+
+message CryptoAllowance {
+  AccountID owner = 1;
+  AccountID spender = 2;
+  int64 amount = 3;
+}
+
+message TokenAllowance {
+  TokenID tokenId = 1;
+  AccountID owner = 2;
+  AccountID spender = 3;
+  int64 amount = 4;
+}
+
+message NftAllowance {
+  TokenID tokenId = 1;
+  AccountID owner = 2;
+  AccountID spender = 3;
+  repeated int64 serial_numbers = 4;
+  BoolValue approved_for_all = 5;
+  AccountID delegating_spender = 6;
+}
+
+message NftRemoveAllowance {
+  TokenID token_id = 1;
+  AccountID owner = 2;
+  repeated int64 serial_numbers = 3;
+}
+
+message CryptoApproveAllowanceTransactionBody {
+  repeated CryptoAllowance cryptoAllowances = 1;
+  repeated NftAllowance nftAllowances = 2;
+  repeated TokenAllowance tokenAllowances = 3;
+}
+
+message CryptoDeleteAllowanceTransactionBody {
+  repeated NftRemoveAllowance nftAllowances = 2;
 }
 
 message TokenTransferList {
@@ -276,6 +322,8 @@ message TransactionBody {
   oneof data {
     ContractCallTransactionBody contractCall = 7;
     ContractCreateTransactionBody contractCreateInstance = 8;
+    CryptoApproveAllowanceTransactionBody cryptoApproveAllowance = 48;
+    CryptoDeleteAllowanceTransactionBody cryptoDeleteAllowance = 49;
     FileAppendTransactionBody fileAppend = 16;
     FileCreateTransactionBody fileCreate = 17;
     FileDeleteTransactionBody fileDelete = 18;

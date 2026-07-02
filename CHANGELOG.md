@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.0 — 2026-07-02
+
+### Allowances (delegated spend)
+
+- `Hedera.Client.approve_allowance/2` — HBAR, fungible-token and NFT allowances
+  (per-serial or approve-for-all) — and `delete_nft_allowance/2`
+  (`Hedera.Transaction.approve_allowance/1` / `delete_nft_allowance/1`;
+  `cryptoApproveAllowance` = 48, `cryptoDeleteAllowance` = 49).
+- Transfers take an `is_approval` flag on a debit — `{account, amount, true}`
+  (HBAR/token) or `{sender, receiver, serial, true}` (NFT) — so a **spender can
+  move the owner's assets under an allowance without the owner's key**.
+- **Validated live**: the operator approves the client as spender; the client
+  then moves the operator's HBAR via the allowance — `SUCCESS`.
+
 ## 0.3.0 — 2026-07-01
 
 - **gRPC query/response now uses generated modules too** — the free receipt

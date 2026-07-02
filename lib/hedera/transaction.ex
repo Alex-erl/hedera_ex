@@ -320,6 +320,80 @@ defmodule Hedera.Transaction do
     end
   end
 
+  # --- Allowances (delegated spend) -------------------------------------------
+
+  @doc """
+  Build + sign a `cryptoApproveAllowance` — authorize a spender to move the
+  owner's assets without the owner's key. Opts:
+
+    * `:hbar_allowances` — `{owner, spender, amount}` (tinybars).
+    * `:token_allowances` — `{token, owner, spender, amount}` (fungible units).
+    * `:nft_allowances` — `{token, owner, spender, serials}` (a list of serials)
+      or `{token, owner, spender, :all}` (approve for every serial of the token).
+
+  Each owner must sign; pass their keys via `:signers` when they aren't the operator.
+  """
+  @spec approve_allowance(keyword()) :: build_result()
+  def approve_allowance(opts) do
+    body = %Pb.CryptoApproveAllowanceTransactionBody{
+      cryptoAllowances:
+        Enum.map(Keyword.get(opts, :hbar_allowances, []), fn {owner, spender, amount} ->
+          %Pb.CryptoAllowance{owner: pb_account(owner), spender: pb_account(spender), amount: amount}
+        end),
+      tokenAllowances:
+        Enum.map(Keyword.get(opts, :token_allowances, []), fn {token, owner, spender, amount} ->
+          %Pb.TokenAllowance{
+            tokenId: pb_token(token),
+            owner: pb_account(owner),
+            spender: pb_account(spender),
+            amount: amount
+          }
+        end),
+      nftAllowances: Enum.map(Keyword.get(opts, :nft_allowances, []), &nft_allowance/1)
+    }
+
+    build(opts, {:cryptoApproveAllowance, body})
+  end
+
+  @doc """
+  Build + sign a `cryptoDeleteAllowance` — remove NFT-serial allowances. Opt
+  `:nft_allowances` is a list of `{token, owner, serials}`. (HBAR/fungible
+  allowances are removed by approving amount `0`.)
+  """
+  @spec delete_nft_allowance(keyword()) :: build_result()
+  def delete_nft_allowance(opts) do
+    body = %Pb.CryptoDeleteAllowanceTransactionBody{
+      nftAllowances:
+        Enum.map(Keyword.get(opts, :nft_allowances, []), fn {token, owner, serials} ->
+          %Pb.NftRemoveAllowance{
+            token_id: pb_token(token),
+            owner: pb_account(owner),
+            serial_numbers: serials
+          }
+        end)
+    }
+
+    build(opts, {:cryptoDeleteAllowance, body})
+  end
+
+  defp nft_allowance({token, owner, spender, :all}) do
+    %Pb.NftAllowance{
+      tokenId: pb_token(token),
+      owner: pb_account(owner),
+      spender: pb_account(spender),
+      approved_for_all: %Pb.BoolValue{value: true}
+    }
+  end
+
+  defp nft_allowance({token, owner, spender, serials}) when is_list(serials) do
+    %Pb.NftAllowance{
+      tokenId: pb_token(token),
+      owner: pb_account(owner),
+      spender: pb_account(spender),
+      serial_numbers: serials
+    }
+  end
+
   # --- build / sign -----------------------------------------------------------
 
   defp build(opts, data) do
@@ -385,20 +459,36 @@ defmodule Hedera.Transaction do
     }
   end
 
+  # `{account, amount}` or `{account, amount, is_approval}` — the latter marks an
+  # approved (allowance-based) debit, where the spender (not the owner) signs.
   defp account_amounts(moves) do
-    Enum.map(moves, fn {%AccountId{} = account, amount} ->
-      %Pb.AccountAmount{accountID: pb_account(account), amount: amount}
+    Enum.map(moves, fn
+      {%AccountId{} = account, amount} ->
+        %Pb.AccountAmount{accountID: pb_account(account), amount: amount}
+
+      {%AccountId{} = account, amount, approval} ->
+        %Pb.AccountAmount{accountID: pb_account(account), amount: amount, is_approval: !!approval}
     end)
   end
 
+  # `{sender, receiver, serial}` or `{sender, receiver, serial, is_approval}`.
   defp nft_transfer_list(moves) do
-    Enum.map(moves, fn {%AccountId{} = sender, %AccountId{} = receiver, serial} ->
-      %Pb.NftTransfer{
-        senderAccountID: pb_account(sender),
-        receiverAccountID: pb_account(receiver),
-        serialNumber: serial
-      }
+    Enum.map(moves, fn
+      {%AccountId{} = sender, %AccountId{} = receiver, serial} ->
+        nft_transfer(sender, receiver, serial, false)
+
+      {%AccountId{} = sender, %AccountId{} = receiver, serial, approval} ->
+        nft_transfer(sender, receiver, serial, !!approval)
     end)
+  end
+
+  defp nft_transfer(sender, receiver, serial, approval) do
+    %Pb.NftTransfer{
+      senderAccountID: pb_account(sender),
+      receiverAccountID: pb_account(receiver),
+      serialNumber: serial,
+      is_approval: approval
+    }
   end
 
   # --- struct → Pb converters -------------------------------------------------

@@ -14,7 +14,7 @@ Add `hedera_ex` to your deps in `mix.exs`:
 
 ```elixir
 def deps do
-  [{:hedera_ex, "~> 0.3.0"}]
+  [{:hedera_ex, "~> 0.4.0"}]
 end
 ```
 
@@ -45,6 +45,7 @@ pure, tested Elixir.
 | File Service | `create_file/2`, `append_file/4`, `update_file/3`, `delete_file/2` | **Verified live.** |
 | Schedule Service | `create_schedule/2`, `sign_schedule/3` | Scheduled transfers + multi-sig collection. **Verified live.** |
 | Smart Contract Service | `create_contract/2`, `call_contract/3` | Deploy (inline bytecode or file) + call. **Verified live.** |
+| Allowances | `approve_allowance/2`, `delete_nft_allowance/2` | Delegated spend (HBAR / token / NFT) + `is_approval` transfers. **Verified live.** |
 | gRPC | `Hedera.Grpc`, `Hedera.Client`, `Hedera.Network` | Unary calls over HTTP/2 (h2c); multi-node address book + cross-node retry. |
 | Receipts | `transaction_receipt/3`, `Hedera.Receipt` | Poll `getTransactionReceipts` → status, topic seq / hash, token / file / schedule / contract id, new total supply, NFT serials. **Verified live.** |
 | Mirror node | `Hedera.MirrorNode` | REST reads (topic messages, transactions). |
@@ -82,6 +83,7 @@ OPERATOR_ID=0.0.x OPERATOR_KEY=0x... mix test --include network
 - [x] Receipts + Mirror-node REST helpers (`Hedera.MirrorNode`)
 - [x] **protoc-generated wire layer** — transactions, receipts and the query/response envelope
 - [x] hex.pm release
+- [x] Allowances — approve / delete + `is_approval` transfers (delegated spend), verified live
 - [ ] Native (gRPC) paid queries: contract-call return via record query, account balance / info, `contractCallLocal`
 - [ ] Account create / update / delete; token update / dissociate
 - [ ] Ethereum (EIP-1559) transactions

@@ -461,6 +461,71 @@ defmodule Hedera.TransactionTest do
     assert Proto.field(call, 4) == <<0xAB, 0xCD>>
   end
 
+  test "approve_allowance encodes cryptoApproveAllowance (48) with hbar/token/nft allowances" do
+    key = PrivateKey.generate_ecdsa()
+    owner = AccountId.parse("0.0.8260469")
+    spender = AccountId.parse("0.0.98")
+    token = TokenId.parse("0.0.777")
+
+    %{transaction: tx} =
+      Transaction.approve_allowance(
+        operator_id: owner,
+        operator_key: key,
+        node_account_id: AccountId.parse("0.0.3"),
+        hbar_allowances: [{owner, spender, 100}],
+        token_allowances: [{token, owner, spender, 50}],
+        nft_allowances: [{token, owner, spender, [1, 2]}, {token, owner, spender, :all}]
+      )
+
+    body = Proto.decode(Proto.field(Proto.decode(Proto.field(decode_signed(tx), 1)), 48))
+    # CryptoAllowance (field 1): amount = field 3
+    assert Proto.field(Proto.decode(Proto.field(body, 1)), 3) == 100
+    # TokenAllowance (field 3): amount = field 4
+    assert Proto.field(Proto.decode(Proto.field(body, 3)), 4) == 50
+    # two NftAllowances (field 2): the second is approved-for-all (field 5)
+    nfts = for {2, _w, v} <- body, do: Proto.decode(v)
+    assert length(nfts) == 2
+    assert Proto.decode_varints(Proto.field(hd(nfts), 4)) == [1, 2]
+    assert is_binary(Proto.field(List.last(nfts), 5))
+  end
+
+  test "delete_nft_allowance encodes cryptoDeleteAllowance (49) with removed serials" do
+    key = PrivateKey.generate_ecdsa()
+
+    %{transaction: tx} =
+      Transaction.delete_nft_allowance(
+        operator_id: AccountId.parse("0.0.2"),
+        operator_key: key,
+        node_account_id: AccountId.parse("0.0.3"),
+        nft_allowances: [{TokenId.parse("0.0.777"), AccountId.parse("0.0.2"), [1, 2, 3]}]
+      )
+
+    body = Proto.decode(Proto.field(Proto.decode(Proto.field(decode_signed(tx), 1)), 49))
+    rm = Proto.decode(Proto.field(body, 2))
+    assert is_binary(Proto.field(rm, 1))
+    assert Proto.decode_varints(Proto.field(rm, 3)) == [1, 2, 3]
+  end
+
+  test "crypto_transfer marks an approved (allowance-based) debit via is_approval" do
+    key = PrivateKey.generate_ecdsa()
+    owner = AccountId.parse("0.0.8260469")
+    spender = AccountId.parse("0.0.98")
+
+    %{transaction: tx} =
+      Transaction.crypto_transfer(
+        operator_id: spender,
+        operator_key: key,
+        node_account_id: AccountId.parse("0.0.3"),
+        transfers: [{owner, -1, true}, {spender, 1}]
+      )
+
+    crypto = Proto.decode(Proto.field(Proto.decode(Proto.field(decode_signed(tx), 1)), 14))
+    [owner_aa, spender_aa] = for {1, _w, v} <- Proto.decode(Proto.field(crypto, 1)), do: Proto.decode(v)
+    # AccountAmount.is_approval = field 3 (bool): set on the owner debit, omitted on the credit
+    assert Proto.field(owner_aa, 3) == 1
+    assert Proto.field(spender_aa, 3) == nil
+  end
+
   test "create_topic encodes a consensusCreateTopic body (field 24)" do
     key = PrivateKey.generate_ed25519()
 

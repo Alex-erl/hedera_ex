@@ -282,6 +282,27 @@ defmodule Hedera.ClientNetworkTest do
     assert is_integer(result["gas_used"])
   end
 
+  test "Allowances: operator approves the client, then the client spends operator HBAR via the allowance" do
+    {operator_id, _operator_key, client} = operator()
+    client_id = AccountId.parse(System.fetch_env!("CLIENT_ID"))
+    client_key = PrivateKey.from_string_ed25519(System.fetch_env!("CLIENT_KEY"))
+    spender = Client.testnet(client_id, client_key)
+
+    # 1. operator (owner) approves the client to spend up to 10 tinybars
+    assert {:ok, approve} =
+             Client.approve_allowance(client, hbar_allowances: [{operator_id, client_id, 10}])
+
+    await_success!(client, approve, "approve allowance")
+
+    # 2. the client (spender), signing with its own key, moves 1 tinybar of the
+    #    operator's HBAR to itself — authorized by the allowance (is_approval)
+    assert {:ok, xfer} =
+             Client.transfer_hbar(spender, [{operator_id, -1, true}, {client_id, 1}])
+
+    assert xfer.precheck_code == 0, "approved transfer pre-check #{xfer.precheck_code}"
+    await_success!(spender, xfer, "approved transfer")
+  end
+
   defp poll_contract_result(_tx_id, 0), do: nil
 
   defp poll_contract_result(tx_id, attempts) do
