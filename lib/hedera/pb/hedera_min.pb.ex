@@ -733,6 +733,19 @@ defmodule Hedera.Pb.ContractCallTransactionBody do
   field :functionParameters, 4, type: :bytes
 end
 
+defmodule Hedera.Pb.EthereumTransactionBody do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.EthereumTransactionBody",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  field :ethereum_data, 1, type: :bytes, json_name: "ethereumData"
+  field :call_data, 2, type: Hedera.Pb.FileID, json_name: "callData"
+  field :max_gas_allowance, 3, type: :int64, json_name: "maxGasAllowance"
+end
+
 defmodule Hedera.Pb.TransactionBody do
   @moduledoc false
 
@@ -794,6 +807,8 @@ defmodule Hedera.Pb.TransactionBody do
     type: Hedera.Pb.TokenUnpauseTransactionBody,
     json_name: "tokenUnpause",
     oneof: 0
+
+  field :ethereumTransaction, 50, type: Hedera.Pb.EthereumTransactionBody, oneof: 0
 end
 
 defmodule Hedera.Pb.SignaturePair do

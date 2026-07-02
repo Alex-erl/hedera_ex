@@ -54,6 +54,7 @@ defmodule Hedera.Client do
   @schedule_sign_path "/proto.ScheduleService/signSchedule"
   @contract_create_path "/proto.SmartContractService/createContract"
   @contract_call_path "/proto.SmartContractService/contractCallMethod"
+  @ethereum_path "/proto.SmartContractService/callEthereum"
   @receipt_path "/proto.CryptoService/getTransactionReceipts"
   @balance_path "/proto.CryptoService/cryptoGetBalance"
   @account_info_path "/proto.CryptoService/getAccountInfo"
@@ -414,6 +415,19 @@ defmodule Hedera.Client do
   def call_contract(%__MODULE__{} = client, %ContractId{} = contract, opts \\ []) do
     execute(client, @contract_call_path, fn node ->
       Transaction.contract_call(with_operator(client, node, [contract: contract] ++ opts))
+    end)
+  end
+
+  @doc """
+  Relay a signed EIP-1559 Ethereum transaction (`ethereum_data`, e.g. from
+  `Hedera.Ethereum.sign_eip1559/2`) to Hedera's EVM. The operator is the
+  Hedera-side payer. See `Hedera.Transaction.ethereum/1` for opts
+  (`:call_data`, `:max_gas_allowance`).
+  """
+  @spec send_ethereum_transaction(t(), binary(), keyword()) :: {:ok, result()} | {:error, term()}
+  def send_ethereum_transaction(%__MODULE__{} = client, ethereum_data, opts \\ []) when is_binary(ethereum_data) do
+    execute(client, @ethereum_path, fn node ->
+      Transaction.ethereum(with_operator(client, node, [ethereum_data: ethereum_data] ++ opts))
     end)
   end
 

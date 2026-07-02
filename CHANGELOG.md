@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.6.0 — 2026-07-02
+
+### Ethereum (EIP-1559) + native crypto queries
+
+- **Ethereum transactions** — `Hedera.Ethereum.sign_eip1559/2` RLP-encodes a
+  type-2 transaction (new `Hedera.Rlp` encoder), signs `keccak256` of it with a
+  secp256k1 key, and **recovers the `yParity`** to produce the complete signed
+  `ethereum_data`. Public-key recovery is implemented natively in
+  `Hedera.Crypto.Secp256k1` (secp256k1 point arithmetic over F_p; OTP has no
+  `ecrecover`). `Hedera.Client.send_ethereum_transaction/3` /
+  `Hedera.Transaction.ethereum/1` relay it via `EthereumTransaction` (oneof 50,
+  `SmartContractService/callEthereum`).
+- **Queries** — `Hedera.Client.account_balance/2` (free `CryptoGetAccountBalance`:
+  hbar + token balances) and `account_info/3` (paid `CryptoGetInfo`: the query
+  payment is a signed CryptoTransfer to the node). Query/Response oneofs
+  `cryptogetAccountBalance` = 7, `cryptoGetInfo` = 9.
+- 71 offline tests (+11: RLP vectors, secp256k1 recovery round-trip, EIP-1559
+  signing, query wire contracts) + live `:network` balance/info.
+
 ## 0.5.0 — 2026-07-02
 
 ### Account lifecycle + token admin breadth

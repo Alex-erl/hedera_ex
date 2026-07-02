@@ -367,6 +367,12 @@ message ContractCallTransactionBody {
   bytes functionParameters = 4;
 }
 
+message EthereumTransactionBody {
+  bytes ethereum_data = 1;
+  FileID call_data = 2;
+  int64 max_gas_allowance = 3;
+}
+
 // --- transaction envelope ---------------------------------------------------
 
 message TransactionBody {
@@ -406,6 +412,7 @@ message TransactionBody {
     ScheduleSignTransactionBody scheduleSign = 44;
     TokenPauseTransactionBody token_pause = 46;
     TokenUnpauseTransactionBody token_unpause = 47;
+    EthereumTransactionBody ethereumTransaction = 50;
   }
 }
 

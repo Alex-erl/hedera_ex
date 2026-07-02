@@ -417,6 +417,25 @@ defmodule Hedera.Transaction do
     build(Keyword.put(opts, :max_fee, fee), {:contractCall, body})
   end
 
+  @doc """
+  Build + sign an `ethereumTransaction`. Required: `:ethereum_data` (a complete,
+  signed EIP-1559 transaction, e.g. from `Hedera.Ethereum.sign_eip1559/2`). Opts:
+  `:call_data` (a `FileId` holding large calldata), `:max_gas_allowance`
+  (tinybars the payer will cover if the Ethereum sender can't, default 0). The
+  operator is the Hedera-side payer; the Ethereum signature authorizes the EVM call.
+  """
+  @spec ethereum(keyword()) :: build_result()
+  def ethereum(opts) do
+    body = %Pb.EthereumTransactionBody{
+      ethereum_data: fetch!(opts, :ethereum_data),
+      call_data: opts[:call_data] && pb_file(opts[:call_data]),
+      max_gas_allowance: Keyword.get(opts, :max_gas_allowance, 0)
+    }
+
+    fee = Keyword.get(opts, :max_fee, @default_contract_fee)
+    build(Keyword.put(opts, :max_fee, fee), {:ethereumTransaction, body})
+  end
+
   defp initcode_source(opts) do
     cond do
       opts[:bytecode] -> {:initcode, opts[:bytecode]}

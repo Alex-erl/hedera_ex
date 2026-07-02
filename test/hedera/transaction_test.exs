@@ -644,4 +644,15 @@ defmodule Hedera.TransactionTest do
     del = Proto.decode(Proto.field(Proto.decode(Proto.field(decode_signed(tx), 1)), 35))
     assert Proto.field(Proto.decode(Proto.field(del, 1)), 3) == 5555
   end
+
+  test "ethereum encodes an ethereumTransaction body (field 50) carrying the signed data" do
+    key = PrivateKey.generate_ecdsa()
+    data = <<0x02, 1, 2, 3, 4, 5>>
+
+    %{transaction: tx} = Transaction.ethereum(base(key) ++ [ethereum_data: data, max_gas_allowance: 100])
+
+    eth = Proto.decode(Proto.field(Proto.decode(Proto.field(decode_signed(tx), 1)), 50))
+    assert Proto.field(eth, 1) == data
+    assert Proto.field(eth, 3) == 100
+  end
 end
