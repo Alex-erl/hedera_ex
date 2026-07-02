@@ -46,6 +46,7 @@ defmodule Hedera.Client do
   @token_update_path "/proto.TokenService/updateToken"
   @token_dissociate_path "/proto.TokenService/dissociateTokens"
   @token_delete_path "/proto.TokenService/deleteToken"
+  @token_fee_schedule_path "/proto.TokenService/updateTokenFeeSchedule"
   @file_create_path "/proto.FileService/createFile"
   @file_append_path "/proto.FileService/appendContent"
   @file_update_path "/proto.FileService/updateFile"
@@ -55,6 +56,7 @@ defmodule Hedera.Client do
   @contract_create_path "/proto.SmartContractService/createContract"
   @contract_call_path "/proto.SmartContractService/contractCallMethod"
   @ethereum_path "/proto.SmartContractService/callEthereum"
+  @contract_local_path "/proto.SmartContractService/contractCallLocalMethod"
   @receipt_path "/proto.CryptoService/getTransactionReceipts"
   @balance_path "/proto.CryptoService/cryptoGetBalance"
   @account_info_path "/proto.CryptoService/getAccountInfo"
@@ -281,6 +283,17 @@ defmodule Hedera.Client do
     end)
   end
 
+  @doc """
+  Replace `token`'s custom fee schedule with `custom_fees` (needs the fee-schedule
+  key). See `Hedera.Transaction.token_fee_schedule_update/1` for the fee-spec shape.
+  """
+  @spec update_token_fee_schedule(t(), TokenId.t(), [map()], keyword()) :: {:ok, result()} | {:error, term()}
+  def update_token_fee_schedule(%__MODULE__{} = client, %TokenId{} = token, custom_fees, opts \\ []) do
+    execute(client, @token_fee_schedule_path, fn node ->
+      Transaction.token_fee_schedule_update(with_operator(client, node, [token: token, custom_fees: custom_fees] ++ opts))
+    end)
+  end
+
   ## Crypto account lifecycle
 
   @doc """
@@ -429,6 +442,39 @@ defmodule Hedera.Client do
     execute(client, @ethereum_path, fn node ->
       Transaction.ethereum(with_operator(client, node, [ethereum_data: ethereum_data] ++ opts))
     end)
+  end
+
+  @doc """
+  Execute a **read-only** contract call locally on a node (`contractCallLocal`) —
+  a paid query that returns the call result without a consensus transaction. Opts:
+  `:gas` (default 50 000), `:function_parameters` (ABI-encoded call data),
+  `:query_payment`. Returns `{:ok, %{result: bytes, gas_used, error_message}}`.
+  """
+  @spec call_contract_local(t(), ContractId.t(), keyword()) :: {:ok, map()} | {:error, term()}
+  def call_contract_local(%__MODULE__{nodes: [node | _]} = client, %ContractId{} = contract, opts \\ []) do
+    query = %Pb.Query{
+      query:
+        {:contractCallLocal,
+         %Pb.ContractCallLocalQuery{
+           header: %Pb.QueryHeader{payment: query_payment(client, node, opts), responseType: :ANSWER_ONLY},
+           contractID: pb_contract_id(contract),
+           gas: Keyword.get(opts, :gas, 50_000),
+           functionParameters: opts[:function_parameters] || ""
+         }}
+    }
+
+    with {:ok, response} <- Grpc.unary(node.host, node.port, @contract_local_path, encode(Pb.Query, query)) do
+      case Pb.Response.decode(response).response do
+        {:contractCallLocal, %Pb.ContractCallLocalResponse{functionResult: nil, header: h}} ->
+          {:error, {:no_contract_result, h && h.nodeTransactionPrecheckCode}}
+
+        {:contractCallLocal, %Pb.ContractCallLocalResponse{functionResult: r}} ->
+          {:ok, %{result: r.contractCallResult, gas_used: r.gasUsed, error_message: nil_if_empty(r.errorMessage)}}
+
+        _ ->
+          {:error, :unexpected_contract_local_response}
+      end
+    end
   end
 
   @doc "Fetch a transaction's consensus receipt, polling until final (free query)."
@@ -594,6 +640,13 @@ defmodule Hedera.Client do
 
   defp pb_account_id(%AccountId{shard: s, realm: r, num: n}),
     do: %Pb.AccountID{shardNum: s, realmNum: r, accountNum: n}
+
+  defp pb_contract_id(%ContractId{shard: s, realm: r, num: n}),
+    do: %Pb.ContractID{shardNum: s, realmNum: r, contract: {:contractNum, n}}
+
+  defp nil_if_empty(nil), do: nil
+  defp nil_if_empty(""), do: nil
+  defp nil_if_empty(s), do: s
 
   # A paid query's payment: a signed CryptoTransfer paying the node the query fee.
   defp query_payment(%__MODULE__{operator_id: op_id, operator_key: op_key}, node, opts) do

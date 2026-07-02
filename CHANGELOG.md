@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.7.0 — 2026-07-02
+
+### Read-only contract calls + token fee-schedule update
+
+- **`Hedera.Client.call_contract_local/3`** — a read-only `contractCallLocal`
+  query (paid): executes a contract call on a node and returns
+  `%{result, gas_used, error_message}` without a consensus transaction.
+- **`Hedera.Client.update_token_fee_schedule/4`** — replace a token's custom-fee
+  schedule (`Hedera.Transaction.token_fee_schedule_update/1`; oneof
+  `token_fee_schedule_update` = 45). Fee specs: fixed, fractional, and royalty
+  (with optional fallback). A `:fee_schedule_key` can now be set on
+  `create_token/2` and `update_token/3` (required to update the schedule).
+- Wire: added `ContractCallLocal` query/response + `ContractFunctionResult`, the
+  custom-fee messages (`CustomFee`/`FixedFee`/`FractionalFee`/`RoyaltyFee`/
+  `Fraction`) and `feeScheduleKey` to token create/update; regenerated `Hedera.Pb.*`.
+- 74 offline tests (+3).
+
 ## 0.6.0 — 2026-07-02
 
 ### Ethereum (EIP-1559) + native crypto queries

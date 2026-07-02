@@ -41,10 +41,10 @@ pure, tested Elixir.
 | Transactions | `Hedera.Transaction` | Build + sign `TransactionBody` → `SignedTransaction` → `Transaction`. **Multi-signature** via `:signers`. |
 | Consensus Service | `submit_message/3`, `create_topic/2` | Create topics, submit messages (HCS). **Verified live.** |
 | Crypto Service | `transfer_hbar/3`, `create_account/2`, `update_account/3`, `delete_account/3` | HBAR transfers (`sint64`/ZigZag; must net to zero) **verified live**; account create / update / delete (new account id returned in the receipt). |
-| Token Service (HTS) | `create_token/2`, `mint_token/4`, `burn_token/4`, `associate_token/4`, `dissociate_token/4`, `transfer_token/4`, `transfer_nft/4`, `freeze_token`/`unfreeze_token`, `grant_kyc`/`revoke_kyc`, `wipe_token`, `pause_token`/`unpause_token`, `update_token/3`, `delete_token/2` | Fungible **and NFT** create / mint (metadata) / transfer, plus associate / dissociate, freeze / KYC / wipe / pause, and update / delete management. **Full lifecycle verified live.** |
+| Token Service (HTS) | `create_token/2`, `mint_token/4`, `burn_token/4`, `associate_token/4`, `dissociate_token/4`, `transfer_token/4`, `transfer_nft/4`, `freeze_token`/`unfreeze_token`, `grant_kyc`/`revoke_kyc`, `wipe_token`, `pause_token`/`unpause_token`, `update_token/3`, `delete_token/2`, `update_token_fee_schedule/4` | Fungible **and NFT** create / mint (metadata) / transfer, plus associate / dissociate, freeze / KYC / wipe / pause, update / delete, and custom-fee-schedule (fixed / fractional / royalty) management. **Full lifecycle verified live.** |
 | File Service | `create_file/2`, `append_file/4`, `update_file/3`, `delete_file/2` | **Verified live.** |
 | Schedule Service | `create_schedule/2`, `sign_schedule/3` | Scheduled transfers + multi-sig collection. **Verified live.** |
-| Smart Contract Service | `create_contract/2`, `call_contract/3` | Deploy (inline bytecode or file) + call. **Verified live.** |
+| Smart Contract Service | `create_contract/2`, `call_contract/3`, `call_contract_local/3` | Deploy (inline bytecode or file), call, and **read-only local call** (`contractCallLocal` — result without a consensus tx). |
 | Ethereum (EIP-1559) | `Hedera.Ethereum.sign_eip1559/2`, `Client.send_ethereum_transaction/3`, `Hedera.Rlp` | Native RLP + type-2 transaction signing (secp256k1 with **public-key recovery** for `yParity`, no external lib) → relayed to Hedera's EVM. |
 | Allowances | `approve_allowance/2`, `delete_nft_allowance/2` | Delegated spend (HBAR / token / NFT) + `is_approval` transfers. **Verified live.** |
 | Queries | `account_balance/2` (free), `account_info/3` (paid) | HBAR + token balances; full account info via a signed-payment query. |
@@ -89,7 +89,7 @@ OPERATOR_ID=0.0.x OPERATOR_KEY=0x... mix test --include network
 - [x] Account create / update / delete; token update / dissociate / delete (encode-verified; live create→delete round-trip test included)
 - [x] Native crypto queries — account balance (free) + account info (paid, signed-payment query); live-verified
 - [x] Ethereum (EIP-1559) transactions — native RLP + secp256k1 recovery (`yParity`), relayed via `EthereumTransaction`
-- [ ] Native paid queries for contracts (`contractCallLocal`, record query)
+- [x] Read-only contract calls (`contractCallLocal`) + token custom-fee-schedule update
 
 ### Why field numbers aren't guessed
 

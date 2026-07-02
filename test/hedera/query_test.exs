@@ -80,4 +80,41 @@ defmodule Hedera.QueryTest do
     assert r.accountInfo.memo == "hi"
     assert r.accountInfo.ownedNfts == 3
   end
+
+  test "ContractCallLocalQuery sits at Query oneof field 3 with contractID + gas" do
+    q = %Pb.Query{
+      query:
+        {:contractCallLocal,
+         %Pb.ContractCallLocalQuery{
+           header: %Pb.QueryHeader{responseType: :ANSWER_ONLY},
+           contractID: %Pb.ContractID{shardNum: 0, realmNum: 0, contract: {:contractNum, 888}},
+           gas: 60_000,
+           functionParameters: <<1, 2, 3>>
+         }}
+    }
+
+    bytes = Pb.Query.encode(q) |> IO.iodata_to_binary()
+    inner = Proto.decode(Proto.field(Proto.decode(bytes), 3))
+    # contractID = field 2 -> contractNum = field 3; gas = field 3
+    assert Proto.field(Proto.decode(Proto.field(inner, 2)), 3) == 888
+    assert Proto.field(inner, 3) == 60_000
+
+    assert {:contractCallLocal, sub} = Pb.Query.decode(bytes).query
+    assert sub.functionParameters == <<1, 2, 3>>
+  end
+
+  test "contract-local response carries the function result (field 3)" do
+    resp = %Pb.Response{
+      response:
+        {:contractCallLocal,
+         %Pb.ContractCallLocalResponse{
+           functionResult: %Pb.ContractFunctionResult{contractCallResult: <<0xAB, 0xCD>>, gasUsed: 1234, errorMessage: ""}
+         }}
+    }
+
+    bytes = Pb.Response.encode(resp) |> IO.iodata_to_binary()
+    assert {:contractCallLocal, r} = Pb.Response.decode(bytes).response
+    assert r.functionResult.contractCallResult == <<0xAB, 0xCD>>
+    assert r.functionResult.gasUsed == 1234
+  end
 end

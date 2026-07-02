@@ -142,7 +142,8 @@ defmodule Hedera.Transaction do
   `:symbol`, `:decimals`, `:initial_supply`, `:token_type` (`:fungible` | `:nft`),
   `:supply_type` (`:infinite` | `:finite`), `:max_supply`, `:token_memo`,
   `:auto_renew_account`, `:auto_renew_period`, and key opts `:admin_key`,
-  `:supply_key`, `:kyc_key`, `:freeze_key`, `:wipe_key`, `:pause_key`.
+  `:supply_key`, `:kyc_key`, `:freeze_key`, `:wipe_key`, `:pause_key`,
+  `:fee_schedule_key` (required to later update the custom-fee schedule).
   """
   @spec token_create(keyword()) :: build_result()
   def token_create(opts) do
@@ -161,6 +162,7 @@ defmodule Hedera.Transaction do
       freezeKey: pb_key(opts[:freeze_key]),
       wipeKey: pb_key(opts[:wipe_key]),
       supplyKey: pb_key(opts[:supply_key]),
+      feeScheduleKey: pb_key(opts[:fee_schedule_key]),
       pauseKey: pb_key(opts[:pause_key]),
       freezeDefault: Keyword.get(opts, :freeze_default, false),
       autoRenewAccount: pb_account(auto_renew),
@@ -259,7 +261,7 @@ defmodule Hedera.Transaction do
   Build + sign a `tokenUpdate`. Required: `:token`. Only fields you pass change —
   `:name`, `:symbol`, `:treasury`, `:token_memo`, `:auto_renew_account`,
   `:auto_renew_period`, and key opts `:admin_key`, `:kyc_key`, `:freeze_key`,
-  `:wipe_key`, `:supply_key`, `:pause_key`. Needs the token's admin key.
+  `:wipe_key`, `:supply_key`, `:pause_key`, `:fee_schedule_key`. Needs the admin key.
   """
   @spec token_update(keyword()) :: build_result()
   def token_update(opts) do
@@ -273,6 +275,7 @@ defmodule Hedera.Transaction do
       freezeKey: pb_key(opts[:freeze_key]),
       wipeKey: pb_key(opts[:wipe_key]),
       supplyKey: pb_key(opts[:supply_key]),
+      feeScheduleKey: pb_key(opts[:fee_schedule_key]),
       pauseKey: pb_key(opts[:pause_key]),
       autoRenewAccount: pb_account(opts[:auto_renew_account]),
       autoRenewPeriod: pb_duration(opts[:auto_renew_period]),
@@ -300,6 +303,66 @@ defmodule Hedera.Transaction do
   @spec token_delete(keyword()) :: build_result()
   def token_delete(opts),
     do: build(opts, {:tokenDeletion, %Pb.TokenDeleteTransactionBody{token: pb_token(fetch!(opts, :token))}})
+
+  @doc """
+  Build + sign a `tokenFeeScheduleUpdate` — replace a token's custom-fee schedule.
+  Required: `:token`. `:custom_fees` is a list of fee specs (maps), each with a
+  `:collector` account and a `:type`:
+
+    * `%{type: :fixed, amount:, denominating_token: TokenId | nil, collector:}`
+    * `%{type: :fractional, numerator:, denominator:, minimum:, maximum:,
+        net_of_transfers:, collector:}`
+    * `%{type: :royalty, numerator:, denominator:, fallback_amount:,
+        fallback_token:, collector:}`
+
+  Needs the token's fee-schedule key.
+  """
+  @spec token_fee_schedule_update(keyword()) :: build_result()
+  def token_fee_schedule_update(opts) do
+    body = %Pb.TokenFeeScheduleUpdateTransactionBody{
+      token_id: pb_token(fetch!(opts, :token)),
+      custom_fees: Enum.map(Keyword.get(opts, :custom_fees, []), &custom_fee/1)
+    }
+
+    build(opts, {:token_fee_schedule_update, body})
+  end
+
+  defp custom_fee(%{type: :fixed} = f) do
+    fee = %Pb.FixedFee{amount: f.amount, denominating_token_id: pb_token_opt(f[:denominating_token])}
+    wrap_fee({:fixed_fee, fee}, f)
+  end
+
+  defp custom_fee(%{type: :fractional} = f) do
+    fee = %Pb.FractionalFee{
+      fractional_amount: %Pb.Fraction{numerator: f.numerator, denominator: f.denominator},
+      minimum_amount: Map.get(f, :minimum, 0),
+      maximum_amount: Map.get(f, :maximum, 0),
+      net_of_transfers: Map.get(f, :net_of_transfers, false)
+    }
+
+    wrap_fee({:fractional_fee, fee}, f)
+  end
+
+  defp custom_fee(%{type: :royalty} = f) do
+    fallback =
+      if f[:fallback_amount],
+        do: %Pb.FixedFee{amount: f.fallback_amount, denominating_token_id: pb_token_opt(f[:fallback_token])}
+
+    fee = %Pb.RoyaltyFee{
+      exchange_value_fraction: %Pb.Fraction{numerator: f.numerator, denominator: f.denominator},
+      fallback_fee: fallback
+    }
+
+    wrap_fee({:royalty_fee, fee}, f)
+  end
+
+  defp wrap_fee(fee_oneof, spec) do
+    %Pb.CustomFee{
+      fee: fee_oneof,
+      fee_collector_account_id: pb_account(spec[:collector]),
+      all_collectors_are_exempt: Map.get(spec, :all_collectors_exempt, false)
+    }
+  end
 
   # --- File Service -----------------------------------------------------------
 
@@ -637,6 +700,9 @@ defmodule Hedera.Transaction do
 
   defp pb_token(%TokenId{shard: s, realm: r, num: n}),
     do: %Pb.TokenID{shardNum: s, realmNum: r, tokenNum: n}
+
+  defp pb_token_opt(nil), do: nil
+  defp pb_token_opt(%TokenId{} = t), do: pb_token(t)
 
   defp pb_file(%FileId{shard: s, realm: r, num: n}),
     do: %Pb.FileID{shardNum: s, realmNum: r, fileNum: n}

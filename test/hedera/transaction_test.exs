@@ -655,4 +655,28 @@ defmodule Hedera.TransactionTest do
     assert Proto.field(eth, 1) == data
     assert Proto.field(eth, 3) == 100
   end
+
+  test "token_fee_schedule_update encodes a field-45 body with fixed + fractional custom fees" do
+    key = PrivateKey.generate_ed25519()
+    collector = AccountId.parse("0.0.4242")
+
+    fees = [
+      %{type: :fixed, amount: 5, collector: collector},
+      %{type: :fractional, numerator: 1, denominator: 100, minimum: 1, maximum: 50, collector: collector}
+    ]
+
+    %{transaction: tx} =
+      Transaction.token_fee_schedule_update(base(key) ++ [token: TokenId.parse("0.0.5555"), custom_fees: fees])
+
+    body = Proto.decode(Proto.field(Proto.decode(Proto.field(decode_signed(tx), 1)), 45))
+    assert Proto.field(Proto.decode(Proto.field(body, 1)), 3) == 5555
+
+    [fixed, frac] = for {2, _w, v} <- body, do: Proto.decode(v)
+    # fixed_fee = field 1 -> FixedFee{amount = 1}; fee_collector = field 4
+    assert Proto.field(Proto.decode(Proto.field(fixed, 1)), 1) == 5
+    assert Proto.field(Proto.decode(Proto.field(fixed, 4)), 3) == 4242
+    # fractional_fee = field 2 -> FractionalFee{fractional_amount = 1 -> Fraction{num, den}}
+    fraction = Proto.decode(Proto.field(Proto.decode(Proto.field(frac, 2)), 1))
+    assert {Proto.field(fraction, 1), Proto.field(fraction, 2)} == {1, 100}
+  end
 end

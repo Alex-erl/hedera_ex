@@ -219,6 +219,7 @@ message TokenCreateTransactionBody {
   TokenType tokenType = 17;
   TokenSupplyType supplyType = 18;
   int64 maxSupply = 19;
+  Key feeScheduleKey = 21;
   Key pauseKey = 22;
 }
 
@@ -287,6 +288,7 @@ message TokenUpdateTransactionBody {
   AccountID autoRenewAccount = 10;
   Duration autoRenewPeriod = 11;
   StringValue memo = 13;
+  Key feeScheduleKey = 14;
   Key pauseKey = 15;
 }
 
@@ -297,6 +299,45 @@ message TokenDissociateTransactionBody {
 
 message TokenDeleteTransactionBody {
   TokenID token = 1;
+}
+
+// --- token custom fees (fee-schedule update) --------------------------------
+
+message Fraction {
+  int64 numerator = 1;
+  int64 denominator = 2;
+}
+
+message FixedFee {
+  int64 amount = 1;
+  TokenID denominating_token_id = 2;
+}
+
+message FractionalFee {
+  Fraction fractional_amount = 1;
+  int64 minimum_amount = 2;
+  int64 maximum_amount = 3;
+  bool net_of_transfers = 4;
+}
+
+message RoyaltyFee {
+  Fraction exchange_value_fraction = 1;
+  FixedFee fallback_fee = 2;
+}
+
+message CustomFee {
+  oneof fee {
+    FixedFee fixed_fee = 1;
+    FractionalFee fractional_fee = 2;
+    RoyaltyFee royalty_fee = 3;
+  }
+  AccountID fee_collector_account_id = 4;
+  bool all_collectors_are_exempt = 5;
+}
+
+message TokenFeeScheduleUpdateTransactionBody {
+  TokenID token_id = 1;
+  repeated CustomFee custom_fees = 2;
 }
 
 // --- file service -----------------------------------------------------------
@@ -373,6 +414,13 @@ message EthereumTransactionBody {
   int64 max_gas_allowance = 3;
 }
 
+message ContractFunctionResult {
+  ContractID contractID = 1;
+  bytes contractCallResult = 2;
+  string errorMessage = 3;
+  int64 gasUsed = 6;
+}
+
 // --- transaction envelope ---------------------------------------------------
 
 message TransactionBody {
@@ -410,6 +458,7 @@ message TransactionBody {
     TokenDeleteTransactionBody tokenDeletion = 35;
     ScheduleCreateTransactionBody scheduleCreate = 42;
     ScheduleSignTransactionBody scheduleSign = 44;
+    TokenFeeScheduleUpdateTransactionBody token_fee_schedule_update = 45;
     TokenPauseTransactionBody token_pause = 46;
     TokenUnpauseTransactionBody token_unpause = 47;
     EthereumTransactionBody ethereumTransaction = 50;
@@ -524,6 +573,18 @@ message CryptoGetInfoResponse {
   AccountInfo accountInfo = 2;
 }
 
+message ContractCallLocalQuery {
+  QueryHeader header = 1;
+  ContractID contractID = 2;
+  int64 gas = 3;
+  bytes functionParameters = 4;
+}
+
+message ContractCallLocalResponse {
+  ResponseHeader header = 1;
+  ContractFunctionResult functionResult = 2;
+}
+
 message TransactionGetReceiptResponse {
   ResponseHeader header = 1;
   TransactionReceipt receipt = 2;
@@ -531,6 +592,7 @@ message TransactionGetReceiptResponse {
 
 message Query {
   oneof query {
+    ContractCallLocalQuery contractCallLocal = 3;
     CryptoGetAccountBalanceQuery cryptogetAccountBalance = 7;
     CryptoGetInfoQuery cryptoGetInfo = 9;
     TransactionGetReceiptQuery transactionGetReceipt = 14;
@@ -539,6 +601,7 @@ message Query {
 
 message Response {
   oneof response {
+    ContractCallLocalResponse contractCallLocal = 3;
     CryptoGetAccountBalanceResponse cryptogetAccountBalance = 7;
     CryptoGetInfoResponse cryptoGetInfo = 9;
     TransactionGetReceiptResponse transactionGetReceipt = 14;

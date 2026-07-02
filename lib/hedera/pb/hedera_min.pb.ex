@@ -437,6 +437,7 @@ defmodule Hedera.Pb.TokenCreateTransactionBody do
   field :tokenType, 17, type: Hedera.Pb.TokenType, enum: true
   field :supplyType, 18, type: Hedera.Pb.TokenSupplyType, enum: true
   field :maxSupply, 19, type: :int64
+  field :feeScheduleKey, 21, type: Hedera.Pb.Key
   field :pauseKey, 22, type: Hedera.Pb.Key
 end
 
@@ -582,6 +583,7 @@ defmodule Hedera.Pb.TokenUpdateTransactionBody do
   field :autoRenewAccount, 10, type: Hedera.Pb.AccountID
   field :autoRenewPeriod, 11, type: Hedera.Pb.Duration
   field :memo, 13, type: Hedera.Pb.StringValue
+  field :feeScheduleKey, 14, type: Hedera.Pb.Key
   field :pauseKey, 15, type: Hedera.Pb.Key
 end
 
@@ -606,6 +608,89 @@ defmodule Hedera.Pb.TokenDeleteTransactionBody do
     syntax: :proto3
 
   field :token, 1, type: Hedera.Pb.TokenID
+end
+
+defmodule Hedera.Pb.Fraction do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.Fraction",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  field :numerator, 1, type: :int64
+  field :denominator, 2, type: :int64
+end
+
+defmodule Hedera.Pb.FixedFee do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.FixedFee",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  field :amount, 1, type: :int64
+  field :denominating_token_id, 2, type: Hedera.Pb.TokenID, json_name: "denominatingTokenId"
+end
+
+defmodule Hedera.Pb.FractionalFee do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.FractionalFee",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  field :fractional_amount, 1, type: Hedera.Pb.Fraction, json_name: "fractionalAmount"
+  field :minimum_amount, 2, type: :int64, json_name: "minimumAmount"
+  field :maximum_amount, 3, type: :int64, json_name: "maximumAmount"
+  field :net_of_transfers, 4, type: :bool, json_name: "netOfTransfers"
+end
+
+defmodule Hedera.Pb.RoyaltyFee do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.RoyaltyFee",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  field :exchange_value_fraction, 1, type: Hedera.Pb.Fraction, json_name: "exchangeValueFraction"
+  field :fallback_fee, 2, type: Hedera.Pb.FixedFee, json_name: "fallbackFee"
+end
+
+defmodule Hedera.Pb.CustomFee do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.CustomFee",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  oneof :fee, 0
+
+  field :fixed_fee, 1, type: Hedera.Pb.FixedFee, json_name: "fixedFee", oneof: 0
+  field :fractional_fee, 2, type: Hedera.Pb.FractionalFee, json_name: "fractionalFee", oneof: 0
+  field :royalty_fee, 3, type: Hedera.Pb.RoyaltyFee, json_name: "royaltyFee", oneof: 0
+
+  field :fee_collector_account_id, 4,
+    type: Hedera.Pb.AccountID,
+    json_name: "feeCollectorAccountId"
+
+  field :all_collectors_are_exempt, 5, type: :bool, json_name: "allCollectorsAreExempt"
+end
+
+defmodule Hedera.Pb.TokenFeeScheduleUpdateTransactionBody do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.TokenFeeScheduleUpdateTransactionBody",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  field :token_id, 1, type: Hedera.Pb.TokenID, json_name: "tokenId"
+  field :custom_fees, 2, repeated: true, type: Hedera.Pb.CustomFee, json_name: "customFees"
 end
 
 defmodule Hedera.Pb.FileCreateTransactionBody do
@@ -746,6 +831,20 @@ defmodule Hedera.Pb.EthereumTransactionBody do
   field :max_gas_allowance, 3, type: :int64, json_name: "maxGasAllowance"
 end
 
+defmodule Hedera.Pb.ContractFunctionResult do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.ContractFunctionResult",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  field :contractID, 1, type: Hedera.Pb.ContractID
+  field :contractCallResult, 2, type: :bytes
+  field :errorMessage, 3, type: :string
+  field :gasUsed, 6, type: :int64
+end
+
 defmodule Hedera.Pb.TransactionBody do
   @moduledoc false
 
@@ -797,6 +896,11 @@ defmodule Hedera.Pb.TransactionBody do
   field :tokenDeletion, 35, type: Hedera.Pb.TokenDeleteTransactionBody, oneof: 0
   field :scheduleCreate, 42, type: Hedera.Pb.ScheduleCreateTransactionBody, oneof: 0
   field :scheduleSign, 44, type: Hedera.Pb.ScheduleSignTransactionBody, oneof: 0
+
+  field :token_fee_schedule_update, 45,
+    type: Hedera.Pb.TokenFeeScheduleUpdateTransactionBody,
+    json_name: "tokenFeeScheduleUpdate",
+    oneof: 0
 
   field :token_pause, 46,
     type: Hedera.Pb.TokenPauseTransactionBody,
@@ -1014,6 +1118,32 @@ defmodule Hedera.Pb.CryptoGetInfoResponse do
   field :accountInfo, 2, type: Hedera.Pb.AccountInfo
 end
 
+defmodule Hedera.Pb.ContractCallLocalQuery do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.ContractCallLocalQuery",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  field :header, 1, type: Hedera.Pb.QueryHeader
+  field :contractID, 2, type: Hedera.Pb.ContractID
+  field :gas, 3, type: :int64
+  field :functionParameters, 4, type: :bytes
+end
+
+defmodule Hedera.Pb.ContractCallLocalResponse do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.ContractCallLocalResponse",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  field :header, 1, type: Hedera.Pb.ResponseHeader
+  field :functionResult, 2, type: Hedera.Pb.ContractFunctionResult
+end
+
 defmodule Hedera.Pb.TransactionGetReceiptResponse do
   @moduledoc false
 
@@ -1033,6 +1163,7 @@ defmodule Hedera.Pb.Query do
 
   oneof :query, 0
 
+  field :contractCallLocal, 3, type: Hedera.Pb.ContractCallLocalQuery, oneof: 0
   field :cryptogetAccountBalance, 7, type: Hedera.Pb.CryptoGetAccountBalanceQuery, oneof: 0
   field :cryptoGetInfo, 9, type: Hedera.Pb.CryptoGetInfoQuery, oneof: 0
   field :transactionGetReceipt, 14, type: Hedera.Pb.TransactionGetReceiptQuery, oneof: 0
@@ -1048,6 +1179,7 @@ defmodule Hedera.Pb.Response do
 
   oneof :response, 0
 
+  field :contractCallLocal, 3, type: Hedera.Pb.ContractCallLocalResponse, oneof: 0
   field :cryptogetAccountBalance, 7, type: Hedera.Pb.CryptoGetAccountBalanceResponse, oneof: 0
   field :cryptoGetInfo, 9, type: Hedera.Pb.CryptoGetInfoResponse, oneof: 0
   field :transactionGetReceipt, 14, type: Hedera.Pb.TransactionGetReceiptResponse, oneof: 0
