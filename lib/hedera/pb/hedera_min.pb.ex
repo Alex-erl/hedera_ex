@@ -915,6 +915,90 @@ defmodule Hedera.Pb.TransactionGetReceiptQuery do
   field :transactionID, 2, type: Hedera.Pb.TransactionID
 end
 
+defmodule Hedera.Pb.TokenBalance do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.TokenBalance",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  field :tokenId, 1, type: Hedera.Pb.TokenID
+  field :balance, 2, type: :uint64
+  field :decimals, 3, type: :uint32
+end
+
+defmodule Hedera.Pb.CryptoGetAccountBalanceQuery do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.CryptoGetAccountBalanceQuery",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  oneof :balanceSource, 0
+
+  field :header, 1, type: Hedera.Pb.QueryHeader
+  field :accountID, 2, type: Hedera.Pb.AccountID, oneof: 0
+  field :contractID, 3, type: Hedera.Pb.ContractID, oneof: 0
+end
+
+defmodule Hedera.Pb.CryptoGetAccountBalanceResponse do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.CryptoGetAccountBalanceResponse",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  field :header, 1, type: Hedera.Pb.ResponseHeader
+  field :accountID, 2, type: Hedera.Pb.AccountID
+  field :balance, 3, type: :uint64
+  field :tokenBalances, 4, repeated: true, type: Hedera.Pb.TokenBalance
+end
+
+defmodule Hedera.Pb.AccountInfo do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.AccountInfo",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  field :accountID, 1, type: Hedera.Pb.AccountID
+  field :contractAccountID, 2, type: :string
+  field :deleted, 3, type: :bool
+  field :key, 7, type: Hedera.Pb.Key
+  field :balance, 8, type: :uint64
+  field :receiverSigRequired, 11, type: :bool
+  field :memo, 15, type: :string
+  field :ownedNfts, 16, type: :int64
+end
+
+defmodule Hedera.Pb.CryptoGetInfoQuery do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.CryptoGetInfoQuery",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  field :header, 1, type: Hedera.Pb.QueryHeader
+  field :accountID, 2, type: Hedera.Pb.AccountID
+end
+
+defmodule Hedera.Pb.CryptoGetInfoResponse do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.CryptoGetInfoResponse",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  field :header, 1, type: Hedera.Pb.ResponseHeader
+  field :accountInfo, 2, type: Hedera.Pb.AccountInfo
+end
+
 defmodule Hedera.Pb.TransactionGetReceiptResponse do
   @moduledoc false
 
@@ -934,6 +1018,8 @@ defmodule Hedera.Pb.Query do
 
   oneof :query, 0
 
+  field :cryptogetAccountBalance, 7, type: Hedera.Pb.CryptoGetAccountBalanceQuery, oneof: 0
+  field :cryptoGetInfo, 9, type: Hedera.Pb.CryptoGetInfoQuery, oneof: 0
   field :transactionGetReceipt, 14, type: Hedera.Pb.TransactionGetReceiptQuery, oneof: 0
 end
 
@@ -947,5 +1033,7 @@ defmodule Hedera.Pb.Response do
 
   oneof :response, 0
 
+  field :cryptogetAccountBalance, 7, type: Hedera.Pb.CryptoGetAccountBalanceResponse, oneof: 0
+  field :cryptoGetInfo, 9, type: Hedera.Pb.CryptoGetInfoResponse, oneof: 0
   field :transactionGetReceipt, 14, type: Hedera.Pb.TransactionGetReceiptResponse, oneof: 0
 end

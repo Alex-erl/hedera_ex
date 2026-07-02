@@ -475,6 +475,48 @@ message TransactionGetReceiptQuery {
   TransactionID transactionID = 2;
 }
 
+message TokenBalance {
+  TokenID tokenId = 1;
+  uint64 balance = 2;
+  uint32 decimals = 3;
+}
+
+message CryptoGetAccountBalanceQuery {
+  QueryHeader header = 1;
+  oneof balanceSource {
+    AccountID accountID = 2;
+    ContractID contractID = 3;
+  }
+}
+
+message CryptoGetAccountBalanceResponse {
+  ResponseHeader header = 1;
+  AccountID accountID = 2;
+  uint64 balance = 3;
+  repeated TokenBalance tokenBalances = 4;
+}
+
+message AccountInfo {
+  AccountID accountID = 1;
+  string contractAccountID = 2;
+  bool deleted = 3;
+  Key key = 7;
+  uint64 balance = 8;
+  bool receiverSigRequired = 11;
+  string memo = 15;
+  int64 ownedNfts = 16;
+}
+
+message CryptoGetInfoQuery {
+  QueryHeader header = 1;
+  AccountID accountID = 2;
+}
+
+message CryptoGetInfoResponse {
+  ResponseHeader header = 1;
+  AccountInfo accountInfo = 2;
+}
+
 message TransactionGetReceiptResponse {
   ResponseHeader header = 1;
   TransactionReceipt receipt = 2;
@@ -482,12 +524,16 @@ message TransactionGetReceiptResponse {
 
 message Query {
   oneof query {
+    CryptoGetAccountBalanceQuery cryptogetAccountBalance = 7;
+    CryptoGetInfoQuery cryptoGetInfo = 9;
     TransactionGetReceiptQuery transactionGetReceipt = 14;
   }
 }
 
 message Response {
   oneof response {
+    CryptoGetAccountBalanceResponse cryptogetAccountBalance = 7;
+    CryptoGetInfoResponse cryptoGetInfo = 9;
     TransactionGetReceiptResponse transactionGetReceipt = 14;
   }
 }

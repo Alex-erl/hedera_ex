@@ -55,6 +55,8 @@ defmodule Hedera.Client do
   @contract_create_path "/proto.SmartContractService/createContract"
   @contract_call_path "/proto.SmartContractService/contractCallMethod"
   @receipt_path "/proto.CryptoService/getTransactionReceipts"
+  @balance_path "/proto.CryptoService/cryptoGetBalance"
+  @account_info_path "/proto.CryptoService/getAccountInfo"
 
   # ResponseCodeEnum.BUSY — worth retrying on another node.
   @busy 11
@@ -424,6 +426,65 @@ defmodule Hedera.Client do
     poll_receipt(node, tx_id, attempts, delay)
   end
 
+  ## Queries
+
+  @doc """
+  Query `account`'s HBAR balance — a **free** query (no payment). Returns
+  `{:ok, %{balance: tinybars, token_balances: [%{token_id, balance, decimals}]}}`.
+  """
+  @spec account_balance(t(), AccountId.t()) :: {:ok, map()} | {:error, term()}
+  def account_balance(%__MODULE__{nodes: [node | _]}, %AccountId{} = account) do
+    query = %Pb.Query{
+      query:
+        {:cryptogetAccountBalance,
+         %Pb.CryptoGetAccountBalanceQuery{
+           header: %Pb.QueryHeader{payment: %Pb.Transaction{}, responseType: :ANSWER_ONLY},
+           balanceSource: {:accountID, pb_account_id(account)}
+         }}
+    }
+
+    with {:ok, response} <- Grpc.unary(node.host, node.port, @balance_path, encode(Pb.Query, query)) do
+      case Pb.Response.decode(response).response do
+        {:cryptogetAccountBalance, %Pb.CryptoGetAccountBalanceResponse{} = r} ->
+          {:ok, %{balance: r.balance, token_balances: token_balances(r.tokenBalances)}}
+
+        _ ->
+          {:error, :unexpected_balance_response}
+      end
+    end
+  end
+
+  @doc """
+  Query `account`'s full info — a **paid** query. A signed CryptoTransfer paying
+  the node covers the cost (`:query_payment` tinybars, default 100_000). Returns
+  `{:ok, %{account_id, balance, key_present?, memo, deleted, owned_nfts,
+  receiver_sig_required}}`.
+  """
+  @spec account_info(t(), AccountId.t(), keyword()) :: {:ok, map()} | {:error, term()}
+  def account_info(%__MODULE__{nodes: [node | _]} = client, %AccountId{} = account, opts \\ []) do
+    query = %Pb.Query{
+      query:
+        {:cryptoGetInfo,
+         %Pb.CryptoGetInfoQuery{
+           header: %Pb.QueryHeader{payment: query_payment(client, node, opts), responseType: :ANSWER_ONLY},
+           accountID: pb_account_id(account)
+         }}
+    }
+
+    with {:ok, response} <- Grpc.unary(node.host, node.port, @account_info_path, encode(Pb.Query, query)) do
+      case Pb.Response.decode(response).response do
+        {:cryptoGetInfo, %Pb.CryptoGetInfoResponse{accountInfo: nil, header: h}} ->
+          {:error, {:no_account_info, h && h.nodeTransactionPrecheckCode}}
+
+        {:cryptoGetInfo, %Pb.CryptoGetInfoResponse{accountInfo: info}} ->
+          {:ok, parse_account_info(info)}
+
+        _ ->
+          {:error, :unexpected_info_response}
+      end
+    end
+  end
+
   # --- execution with cross-node retry ----------------------------------------
 
   # Prepend the standard operator/node options to a per-call opts list.
@@ -514,6 +575,52 @@ defmodule Hedera.Client do
       accountID: %Pb.AccountID{shardNum: a.shard, realmNum: a.realm, accountNum: a.num}
     }
   end
+
+  # --- query helpers ----------------------------------------------------------
+
+  defp pb_account_id(%AccountId{shard: s, realm: r, num: n}),
+    do: %Pb.AccountID{shardNum: s, realmNum: r, accountNum: n}
+
+  # A paid query's payment: a signed CryptoTransfer paying the node the query fee.
+  defp query_payment(%__MODULE__{operator_id: op_id, operator_key: op_key}, node, opts) do
+    fee = Keyword.get(opts, :query_payment, 100_000)
+
+    %{transaction: bytes} =
+      Transaction.crypto_transfer(
+        operator_id: op_id,
+        operator_key: op_key,
+        node_account_id: node.account_id,
+        transfers: [{op_id, -fee}, {node.account_id, fee}]
+      )
+
+    Pb.Transaction.decode(bytes)
+  end
+
+  defp token_balances(nil), do: []
+
+  defp token_balances(balances) do
+    Enum.map(balances, fn tb ->
+      %{token_id: from_token(tb.tokenId), balance: tb.balance, decimals: tb.decimals}
+    end)
+  end
+
+  defp parse_account_info(info) do
+    %{
+      account_id: from_account(info.accountID),
+      balance: info.balance,
+      memo: info.memo,
+      deleted: info.deleted,
+      owned_nfts: info.ownedNfts,
+      receiver_sig_required: info.receiverSigRequired,
+      key_present?: info.key != nil
+    }
+  end
+
+  defp from_account(nil), do: nil
+  defp from_account(pb), do: %AccountId{shard: pb.shardNum, realm: pb.realmNum, num: pb.accountNum}
+
+  defp from_token(nil), do: nil
+  defp from_token(pb), do: %TokenId{shard: pb.shardNum, realm: pb.realmNum, num: pb.tokenNum}
 
   defp encode(mod, struct), do: struct |> mod.encode() |> IO.iodata_to_binary()
 end

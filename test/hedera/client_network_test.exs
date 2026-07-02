@@ -323,6 +323,18 @@ defmodule Hedera.ClientNetworkTest do
     await_success!(client, deleted, "account delete")
   end
 
+  test "account_balance (free) and account_info (paid) for the operator" do
+    {operator_id, _key, client} = operator()
+
+    assert {:ok, %{balance: bal}} = Client.account_balance(client, operator_id)
+    assert is_integer(bal) and bal > 0, "operator balance #{bal} (expected > 0)"
+
+    assert {:ok, info} = Client.account_info(client, operator_id)
+    assert info.account_id == operator_id
+    assert info.balance > 0
+    assert info.key_present?
+  end
+
   defp poll_contract_result(_tx_id, 0), do: nil
 
   defp poll_contract_result(tx_id, attempts) do
