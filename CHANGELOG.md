@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.0 — 2026-07-02
+
+### Account lifecycle + token admin breadth
+
+- **Crypto Service** — `Hedera.Client.create_account/2`, `update_account/3`,
+  `delete_account/3` (`Hedera.Transaction.crypto_create/1` / `crypto_update/1` /
+  `crypto_delete/1`; `cryptoCreateAccount` = 11, `cryptoDelete` = 12,
+  `cryptoUpdateAccount` = 15). Create sets the key / initial balance and returns
+  the **new account id in the receipt** (`Hedera.Receipt.account_id`, receipt
+  field 2). Update touches only the fields you pass (`StringValue` / `BoolValue`
+  wrappers distinguish unset from empty). Delete sweeps the balance to a transfer
+  account.
+- **Token Service** — `update_token/3`, `dissociate_token/4`, `delete_token/2`
+  (`tokenUpdate` = 36, `tokenDissociate` = 41, `tokenDeletion` = 35).
+- Wire layer: added the bodies + `StringValue` to `priv/protos` and regenerated
+  `Hedera.Pb.*`. All field numbers are canonical HAPI values. 60 offline tests
+  (+9); a live account create→delete round-trip test is included (`:network`).
+
 ## 0.4.0 — 2026-07-02
 
 ### Allowances (delegated spend)

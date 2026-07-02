@@ -6,7 +6,7 @@ defmodule Hedera.Receipt do
   the token's `new_total_supply` (on mint/burn).
   """
 
-  alias Hedera.{ContractId, FileId, ScheduleId, TokenId, TopicId}
+  alias Hedera.{AccountId, ContractId, FileId, ScheduleId, TokenId, TopicId}
 
   # ResponseCodeEnum
   @status_unknown 21
@@ -15,6 +15,7 @@ defmodule Hedera.Receipt do
   @enforce_keys [:status]
   defstruct [
     :status,
+    :account_id,
     :topic_id,
     :topic_sequence_number,
     :topic_running_hash,
@@ -28,6 +29,7 @@ defmodule Hedera.Receipt do
 
   @type t :: %__MODULE__{
           status: non_neg_integer(),
+          account_id: AccountId.t() | nil,
           topic_id: TopicId.t() | nil,
           topic_sequence_number: non_neg_integer() | nil,
           topic_running_hash: binary() | nil,
@@ -56,6 +58,7 @@ defmodule Hedera.Receipt do
   def from_pb(%Hedera.Pb.TransactionReceipt{} = pb) do
     %__MODULE__{
       status: pb.status,
+      account_id: from_id(pb.accountID, AccountId, :accountNum),
       topic_id: from_id(pb.topicID, TopicId, :topicNum),
       topic_sequence_number: pb.topicSequenceNumber,
       topic_running_hash: pb.topicRunningHash,

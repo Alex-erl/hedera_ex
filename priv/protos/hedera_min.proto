@@ -77,6 +77,12 @@ message BoolValue {
   bool value = 1;
 }
 
+// google.protobuf.StringValue equivalent (self-contained); wraps an optional
+// string so "unset" (nil) is distinct from "set to empty" in update bodies.
+message StringValue {
+  string value = 1;
+}
+
 // --- crypto transfer --------------------------------------------------------
 
 message AccountAmount {
@@ -145,6 +151,31 @@ message TokenTransferList {
 message CryptoTransferTransactionBody {
   TransferList transfers = 1;
   repeated TokenTransferList tokenTransfers = 2;
+}
+
+// --- crypto account lifecycle ----------------------------------------------
+
+message CryptoCreateTransactionBody {
+  Key key = 1;
+  uint64 initialBalance = 2;
+  bool receiverSigRequired = 8;
+  Duration autoRenewPeriod = 9;
+  string memo = 13;
+  int32 max_automatic_token_associations = 14;
+}
+
+message CryptoUpdateTransactionBody {
+  AccountID accountIDToUpdate = 2;
+  Key key = 3;
+  Duration autoRenewPeriod = 7;
+  Timestamp expirationTime = 8;
+  BoolValue receiverSigRequiredWrapper = 13;
+  StringValue memo = 14;
+}
+
+message CryptoDeleteTransactionBody {
+  AccountID transferAccountID = 1;
+  AccountID deleteAccountID = 2;
 }
 
 // --- consensus service ------------------------------------------------------
@@ -243,6 +274,31 @@ message TokenUnpauseTransactionBody {
   TokenID token = 1;
 }
 
+message TokenUpdateTransactionBody {
+  TokenID token = 1;
+  string symbol = 2;
+  string name = 3;
+  AccountID treasury = 4;
+  Key adminKey = 5;
+  Key kycKey = 6;
+  Key freezeKey = 7;
+  Key wipeKey = 8;
+  Key supplyKey = 9;
+  AccountID autoRenewAccount = 10;
+  Duration autoRenewPeriod = 11;
+  StringValue memo = 13;
+  Key pauseKey = 15;
+}
+
+message TokenDissociateTransactionBody {
+  AccountID account = 1;
+  repeated TokenID tokens = 2;
+}
+
+message TokenDeleteTransactionBody {
+  TokenID token = 1;
+}
+
 // --- file service -----------------------------------------------------------
 
 message FileCreateTransactionBody {
@@ -324,6 +380,9 @@ message TransactionBody {
     ContractCreateTransactionBody contractCreateInstance = 8;
     CryptoApproveAllowanceTransactionBody cryptoApproveAllowance = 48;
     CryptoDeleteAllowanceTransactionBody cryptoDeleteAllowance = 49;
+    CryptoCreateTransactionBody cryptoCreateAccount = 11;
+    CryptoUpdateTransactionBody cryptoUpdateAccount = 15;
+    CryptoDeleteTransactionBody cryptoDelete = 12;
     FileAppendTransactionBody fileAppend = 16;
     FileCreateTransactionBody fileCreate = 17;
     FileDeleteTransactionBody fileDelete = 18;
@@ -340,6 +399,9 @@ message TransactionBody {
     TokenBurnTransactionBody tokenBurn = 38;
     TokenWipeAccountTransactionBody tokenWipe = 39;
     TokenAssociateTransactionBody tokenAssociate = 40;
+    TokenDissociateTransactionBody tokenDissociate = 41;
+    TokenUpdateTransactionBody tokenUpdate = 36;
+    TokenDeleteTransactionBody tokenDeletion = 35;
     ScheduleCreateTransactionBody scheduleCreate = 42;
     ScheduleSignTransactionBody scheduleSign = 44;
     TokenPauseTransactionBody token_pause = 46;
@@ -370,6 +432,7 @@ message Transaction {
 
 message TransactionReceipt {
   int32 status = 1;
+  AccountID accountID = 2;
   ContractID contractID = 4;
   FileID fileID = 3;
   TopicID topicID = 6;

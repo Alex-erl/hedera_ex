@@ -188,6 +188,17 @@ defmodule Hedera.Pb.BoolValue do
   field :value, 1, type: :bool
 end
 
+defmodule Hedera.Pb.StringValue do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.StringValue",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  field :value, 1, type: :string
+end
+
 defmodule Hedera.Pb.AccountAmount do
   @moduledoc false
 
@@ -329,6 +340,53 @@ defmodule Hedera.Pb.CryptoTransferTransactionBody do
 
   field :transfers, 1, type: Hedera.Pb.TransferList
   field :tokenTransfers, 2, repeated: true, type: Hedera.Pb.TokenTransferList
+end
+
+defmodule Hedera.Pb.CryptoCreateTransactionBody do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.CryptoCreateTransactionBody",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  field :key, 1, type: Hedera.Pb.Key
+  field :initialBalance, 2, type: :uint64
+  field :receiverSigRequired, 8, type: :bool
+  field :autoRenewPeriod, 9, type: Hedera.Pb.Duration
+  field :memo, 13, type: :string
+
+  field :max_automatic_token_associations, 14,
+    type: :int32,
+    json_name: "maxAutomaticTokenAssociations"
+end
+
+defmodule Hedera.Pb.CryptoUpdateTransactionBody do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.CryptoUpdateTransactionBody",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  field :accountIDToUpdate, 2, type: Hedera.Pb.AccountID
+  field :key, 3, type: Hedera.Pb.Key
+  field :autoRenewPeriod, 7, type: Hedera.Pb.Duration
+  field :expirationTime, 8, type: Hedera.Pb.Timestamp
+  field :receiverSigRequiredWrapper, 13, type: Hedera.Pb.BoolValue
+  field :memo, 14, type: Hedera.Pb.StringValue
+end
+
+defmodule Hedera.Pb.CryptoDeleteTransactionBody do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.CryptoDeleteTransactionBody",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  field :transferAccountID, 1, type: Hedera.Pb.AccountID
+  field :deleteAccountID, 2, type: Hedera.Pb.AccountID
 end
 
 defmodule Hedera.Pb.ConsensusCreateTopicTransactionBody do
@@ -504,6 +562,52 @@ defmodule Hedera.Pb.TokenUnpauseTransactionBody do
   field :token, 1, type: Hedera.Pb.TokenID
 end
 
+defmodule Hedera.Pb.TokenUpdateTransactionBody do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.TokenUpdateTransactionBody",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  field :token, 1, type: Hedera.Pb.TokenID
+  field :symbol, 2, type: :string
+  field :name, 3, type: :string
+  field :treasury, 4, type: Hedera.Pb.AccountID
+  field :adminKey, 5, type: Hedera.Pb.Key
+  field :kycKey, 6, type: Hedera.Pb.Key
+  field :freezeKey, 7, type: Hedera.Pb.Key
+  field :wipeKey, 8, type: Hedera.Pb.Key
+  field :supplyKey, 9, type: Hedera.Pb.Key
+  field :autoRenewAccount, 10, type: Hedera.Pb.AccountID
+  field :autoRenewPeriod, 11, type: Hedera.Pb.Duration
+  field :memo, 13, type: Hedera.Pb.StringValue
+  field :pauseKey, 15, type: Hedera.Pb.Key
+end
+
+defmodule Hedera.Pb.TokenDissociateTransactionBody do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.TokenDissociateTransactionBody",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  field :account, 1, type: Hedera.Pb.AccountID
+  field :tokens, 2, repeated: true, type: Hedera.Pb.TokenID
+end
+
+defmodule Hedera.Pb.TokenDeleteTransactionBody do
+  @moduledoc false
+
+  use Protobuf,
+    full_name: "hedera.pb.TokenDeleteTransactionBody",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
+
+  field :token, 1, type: Hedera.Pb.TokenID
+end
+
 defmodule Hedera.Pb.FileCreateTransactionBody do
   @moduledoc false
 
@@ -652,6 +756,9 @@ defmodule Hedera.Pb.TransactionBody do
     oneof: 0
 
   field :cryptoDeleteAllowance, 49, type: Hedera.Pb.CryptoDeleteAllowanceTransactionBody, oneof: 0
+  field :cryptoCreateAccount, 11, type: Hedera.Pb.CryptoCreateTransactionBody, oneof: 0
+  field :cryptoUpdateAccount, 15, type: Hedera.Pb.CryptoUpdateTransactionBody, oneof: 0
+  field :cryptoDelete, 12, type: Hedera.Pb.CryptoDeleteTransactionBody, oneof: 0
   field :fileAppend, 16, type: Hedera.Pb.FileAppendTransactionBody, oneof: 0
   field :fileCreate, 17, type: Hedera.Pb.FileCreateTransactionBody, oneof: 0
   field :fileDelete, 18, type: Hedera.Pb.FileDeleteTransactionBody, oneof: 0
@@ -672,6 +779,9 @@ defmodule Hedera.Pb.TransactionBody do
   field :tokenBurn, 38, type: Hedera.Pb.TokenBurnTransactionBody, oneof: 0
   field :tokenWipe, 39, type: Hedera.Pb.TokenWipeAccountTransactionBody, oneof: 0
   field :tokenAssociate, 40, type: Hedera.Pb.TokenAssociateTransactionBody, oneof: 0
+  field :tokenDissociate, 41, type: Hedera.Pb.TokenDissociateTransactionBody, oneof: 0
+  field :tokenUpdate, 36, type: Hedera.Pb.TokenUpdateTransactionBody, oneof: 0
+  field :tokenDeletion, 35, type: Hedera.Pb.TokenDeleteTransactionBody, oneof: 0
   field :scheduleCreate, 42, type: Hedera.Pb.ScheduleCreateTransactionBody, oneof: 0
   field :scheduleSign, 44, type: Hedera.Pb.ScheduleSignTransactionBody, oneof: 0
 
@@ -744,6 +854,7 @@ defmodule Hedera.Pb.TransactionReceipt do
     syntax: :proto3
 
   field :status, 1, type: :int32
+  field :accountID, 2, type: Hedera.Pb.AccountID
   field :contractID, 4, type: Hedera.Pb.ContractID
   field :fileID, 3, type: Hedera.Pb.FileID
   field :topicID, 6, type: Hedera.Pb.TopicID

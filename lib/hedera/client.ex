@@ -29,6 +29,9 @@ defmodule Hedera.Client do
   @transfer_path "/proto.CryptoService/cryptoTransfer"
   @approve_allowance_path "/proto.CryptoService/approveAllowances"
   @delete_allowance_path "/proto.CryptoService/deleteAllowances"
+  @account_create_path "/proto.CryptoService/createAccount"
+  @account_update_path "/proto.CryptoService/updateAccount"
+  @account_delete_path "/proto.CryptoService/cryptoDelete"
   @token_create_path "/proto.TokenService/createToken"
   @token_mint_path "/proto.TokenService/mintToken"
   @token_burn_path "/proto.TokenService/burnToken"
@@ -40,6 +43,9 @@ defmodule Hedera.Client do
   @token_wipe_path "/proto.TokenService/wipeTokenAccount"
   @token_pause_path "/proto.TokenService/pauseToken"
   @token_unpause_path "/proto.TokenService/unpauseToken"
+  @token_update_path "/proto.TokenService/updateToken"
+  @token_dissociate_path "/proto.TokenService/dissociateTokens"
+  @token_delete_path "/proto.TokenService/deleteToken"
   @file_create_path "/proto.FileService/createFile"
   @file_append_path "/proto.FileService/appendContent"
   @file_update_path "/proto.FileService/updateFile"
@@ -242,6 +248,71 @@ defmodule Hedera.Client do
   def unpause_token(%__MODULE__{} = client, %TokenId{} = token, opts \\ []) do
     execute(client, @token_unpause_path, fn node ->
       Transaction.token_unpause(with_operator(client, node, [token: token] ++ opts))
+    end)
+  end
+
+  @doc "Update `token` (needs the admin key). See `Hedera.Transaction.token_update/1` for opts."
+  @spec update_token(t(), TokenId.t(), keyword()) :: {:ok, result()} | {:error, term()}
+  def update_token(%__MODULE__{} = client, %TokenId{} = token, opts \\ []) do
+    execute(client, @token_update_path, fn node ->
+      Transaction.token_update(with_operator(client, node, [token: token] ++ opts))
+    end)
+  end
+
+  @doc """
+  Dissociate `tokens` from `account`. The account must sign; when it is not the
+  operator, pass its key via `signers: [account_key]` in `opts`.
+  """
+  @spec dissociate_token(t(), AccountId.t(), [TokenId.t()], keyword()) :: {:ok, result()} | {:error, term()}
+  def dissociate_token(%__MODULE__{} = client, %AccountId{} = account, tokens, opts \\ []) do
+    execute(client, @token_dissociate_path, fn node ->
+      Transaction.token_dissociate(with_operator(client, node, [account: account, tokens: tokens] ++ opts))
+    end)
+  end
+
+  @doc "Delete `token` (needs the admin key)."
+  @spec delete_token(t(), TokenId.t(), keyword()) :: {:ok, result()} | {:error, term()}
+  def delete_token(%__MODULE__{} = client, %TokenId{} = token, opts \\ []) do
+    execute(client, @token_delete_path, fn node ->
+      Transaction.token_delete(with_operator(client, node, [token: token] ++ opts))
+    end)
+  end
+
+  ## Crypto account lifecycle
+
+  @doc """
+  Create a new account. See `Hedera.Transaction.crypto_create/1` for opts
+  (`:key`, `:initial_balance`, …). The new account's id is in the receipt's
+  `account_id`.
+  """
+  @spec create_account(t(), keyword()) :: {:ok, result()} | {:error, term()}
+  def create_account(%__MODULE__{} = client, opts \\ []) do
+    execute(client, @account_create_path, fn node ->
+      Transaction.crypto_create(with_operator(client, node, opts))
+    end)
+  end
+
+  @doc """
+  Update `account` (only the fields you pass change). See
+  `Hedera.Transaction.crypto_update/1`. The account's current key must sign; a
+  new `:key` must sign too — pass extra keys via `signers:` in `opts`.
+  """
+  @spec update_account(t(), AccountId.t(), keyword()) :: {:ok, result()} | {:error, term()}
+  def update_account(%__MODULE__{} = client, %AccountId{} = account, opts \\ []) do
+    execute(client, @account_update_path, fn node ->
+      Transaction.crypto_update(with_operator(client, node, [account: account] ++ opts))
+    end)
+  end
+
+  @doc """
+  Delete `account`, sweeping its remaining hbar to `:transfer_account` (defaults
+  to the operator). The account's key must sign — pass via `signers:` when it is
+  not the operator.
+  """
+  @spec delete_account(t(), AccountId.t(), keyword()) :: {:ok, result()} | {:error, term()}
+  def delete_account(%__MODULE__{} = client, %AccountId{} = account, opts \\ []) do
+    execute(client, @account_delete_path, fn node ->
+      Transaction.crypto_delete(with_operator(client, node, [account: account] ++ opts))
     end)
   end
 

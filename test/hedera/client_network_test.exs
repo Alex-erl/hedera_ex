@@ -303,6 +303,26 @@ defmodule Hedera.ClientNetworkTest do
     await_success!(spender, xfer, "approved transfer")
   end
 
+  test "creates a new account then deletes it (SUCCESS receipts; account_id round-trips)" do
+    {operator_id, _operator_key, client} = operator()
+    new_key = PrivateKey.generate_ed25519()
+
+    assert {:ok, created} =
+             Client.create_account(client, key: PrivateKey.public_key(new_key), initial_balance: 0)
+
+    assert created.precheck_code == 0, "create_account pre-check #{created.precheck_code}"
+    assert {:ok, receipt} = Client.transaction_receipt(client, created.transaction_id)
+    assert Receipt.success?(receipt), "create receipt status #{receipt.status}"
+    assert %AccountId{} = receipt.account_id
+
+    # delete it, sweeping any balance to the operator; the new account must sign
+    assert {:ok, deleted} =
+             Client.delete_account(client, receipt.account_id, transfer_account: operator_id, signers: [new_key])
+
+    assert deleted.precheck_code == 0, "delete_account pre-check #{deleted.precheck_code}"
+    await_success!(client, deleted, "account delete")
+  end
+
   defp poll_contract_result(_tx_id, 0), do: nil
 
   defp poll_contract_result(tx_id, attempts) do

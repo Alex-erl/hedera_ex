@@ -40,8 +40,8 @@ pure, tested Elixir.
 | Wire encoding | `Hedera.Pb.*` (protoc-generated) | `Hedera.Transaction` builds every body as a generated struct; `priv/protos` + `generate.sh`. |
 | Transactions | `Hedera.Transaction` | Build + sign `TransactionBody` → `SignedTransaction` → `Transaction`. **Multi-signature** via `:signers`. |
 | Consensus Service | `submit_message/3`, `create_topic/2` | Create topics, submit messages (HCS). **Verified live.** |
-| Crypto Service | `transfer_hbar/3` | HBAR transfers (`sint64`/ZigZag; must net to zero). **Verified live.** |
-| Token Service (HTS) | `create_token/2`, `mint_token/4`, `burn_token/4`, `associate_token/4`, `transfer_token/4`, `transfer_nft/4`, `freeze_token`/`unfreeze_token`, `grant_kyc`/`revoke_kyc`, `wipe_token`, `pause_token`/`unpause_token` | Fungible **and NFT** create / mint (metadata) / transfer, plus freeze / KYC / wipe / pause management. **Full lifecycle verified live.** |
+| Crypto Service | `transfer_hbar/3`, `create_account/2`, `update_account/3`, `delete_account/3` | HBAR transfers (`sint64`/ZigZag; must net to zero) **verified live**; account create / update / delete (new account id returned in the receipt). |
+| Token Service (HTS) | `create_token/2`, `mint_token/4`, `burn_token/4`, `associate_token/4`, `dissociate_token/4`, `transfer_token/4`, `transfer_nft/4`, `freeze_token`/`unfreeze_token`, `grant_kyc`/`revoke_kyc`, `wipe_token`, `pause_token`/`unpause_token`, `update_token/3`, `delete_token/2` | Fungible **and NFT** create / mint (metadata) / transfer, plus associate / dissociate, freeze / KYC / wipe / pause, and update / delete management. **Full lifecycle verified live.** |
 | File Service | `create_file/2`, `append_file/4`, `update_file/3`, `delete_file/2` | **Verified live.** |
 | Schedule Service | `create_schedule/2`, `sign_schedule/3` | Scheduled transfers + multi-sig collection. **Verified live.** |
 | Smart Contract Service | `create_contract/2`, `call_contract/3` | Deploy (inline bytecode or file) + call. **Verified live.** |
@@ -84,8 +84,8 @@ OPERATOR_ID=0.0.x OPERATOR_KEY=0x... mix test --include network
 - [x] **protoc-generated wire layer** — transactions, receipts and the query/response envelope
 - [x] hex.pm release
 - [x] Allowances — approve / delete + `is_approval` transfers (delegated spend), verified live
+- [x] Account create / update / delete; token update / dissociate / delete (encode-verified; live create→delete round-trip test included)
 - [ ] Native (gRPC) paid queries: contract-call return via record query, account balance / info, `contractCallLocal`
-- [ ] Account create / update / delete; token update / dissociate
 - [ ] Ethereum (EIP-1559) transactions
 
 ### Why field numbers aren't guessed

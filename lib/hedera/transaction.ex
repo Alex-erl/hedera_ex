@@ -76,6 +76,65 @@ defmodule Hedera.Transaction do
     build(opts, {:cryptoTransfer, crypto_transfer_body(opts)})
   end
 
+  # --- Crypto account lifecycle -----------------------------------------------
+
+  @doc """
+  Build + sign a `cryptoCreateAccount`. Opts: `:key` (the new account's
+  `PublicKey`; defaults to the operator's key), `:initial_balance` (tinybars),
+  `:receiver_sig_required`, `:auto_renew_period`, `:account_memo`,
+  `:max_automatic_token_associations`. The new account's id is returned in the
+  receipt's `account_id`.
+  """
+  @spec crypto_create(keyword()) :: build_result()
+  def crypto_create(opts) do
+    key = opts[:key] || PrivateKey.public_key(fetch!(opts, :operator_key))
+
+    body = %Pb.CryptoCreateTransactionBody{
+      key: pb_key(key),
+      initialBalance: Keyword.get(opts, :initial_balance, 0),
+      receiverSigRequired: Keyword.get(opts, :receiver_sig_required, false),
+      autoRenewPeriod: %Pb.Duration{seconds: Keyword.get(opts, :auto_renew_period, @default_auto_renew_seconds)},
+      memo: opts[:account_memo] || "",
+      max_automatic_token_associations: Keyword.get(opts, :max_automatic_token_associations, 0)
+    }
+
+    build(opts, {:cryptoCreateAccount, body})
+  end
+
+  @doc """
+  Build + sign a `cryptoUpdateAccount`. Required: `:account`. Only the fields you
+  pass are changed — `:key` (new `PublicKey`), `:auto_renew_period`,
+  `:receiver_sig_required`, `:account_memo`. The account's existing key must sign
+  (pass it via `:signers` when it is not the operator); a new `:key` must sign too.
+  """
+  @spec crypto_update(keyword()) :: build_result()
+  def crypto_update(opts) do
+    body = %Pb.CryptoUpdateTransactionBody{
+      accountIDToUpdate: pb_account(fetch!(opts, :account)),
+      key: pb_key(opts[:key]),
+      autoRenewPeriod: pb_duration(opts[:auto_renew_period]),
+      receiverSigRequiredWrapper: pb_bool(opts[:receiver_sig_required]),
+      memo: pb_string(opts[:account_memo])
+    }
+
+    build(opts, {:cryptoUpdateAccount, body})
+  end
+
+  @doc """
+  Build + sign a `cryptoDelete`. Required: `:account` (the account to delete). Its
+  remaining hbar goes to `:transfer_account` (defaults to the operator). The
+  deleted account's key must sign (pass via `:signers` when not the operator).
+  """
+  @spec crypto_delete(keyword()) :: build_result()
+  def crypto_delete(opts) do
+    body = %Pb.CryptoDeleteTransactionBody{
+      deleteAccountID: pb_account(fetch!(opts, :account)),
+      transferAccountID: pb_account(Keyword.get(opts, :transfer_account, fetch!(opts, :operator_id)))
+    }
+
+    build(opts, {:cryptoDelete, body})
+  end
+
   # --- Token Service ----------------------------------------------------------
 
   @doc """
@@ -195,6 +254,52 @@ defmodule Hedera.Transaction do
   @spec token_unpause(keyword()) :: build_result()
   def token_unpause(opts),
     do: build(opts, {:token_unpause, %Pb.TokenUnpauseTransactionBody{token: pb_token(fetch!(opts, :token))}})
+
+  @doc """
+  Build + sign a `tokenUpdate`. Required: `:token`. Only fields you pass change —
+  `:name`, `:symbol`, `:treasury`, `:token_memo`, `:auto_renew_account`,
+  `:auto_renew_period`, and key opts `:admin_key`, `:kyc_key`, `:freeze_key`,
+  `:wipe_key`, `:supply_key`, `:pause_key`. Needs the token's admin key.
+  """
+  @spec token_update(keyword()) :: build_result()
+  def token_update(opts) do
+    body = %Pb.TokenUpdateTransactionBody{
+      token: pb_token(fetch!(opts, :token)),
+      name: opts[:name] || "",
+      symbol: opts[:symbol] || "",
+      treasury: pb_account(opts[:treasury]),
+      adminKey: pb_key(opts[:admin_key]),
+      kycKey: pb_key(opts[:kyc_key]),
+      freezeKey: pb_key(opts[:freeze_key]),
+      wipeKey: pb_key(opts[:wipe_key]),
+      supplyKey: pb_key(opts[:supply_key]),
+      pauseKey: pb_key(opts[:pause_key]),
+      autoRenewAccount: pb_account(opts[:auto_renew_account]),
+      autoRenewPeriod: pb_duration(opts[:auto_renew_period]),
+      memo: pb_string(opts[:token_memo])
+    }
+
+    build(opts, {:tokenUpdate, body})
+  end
+
+  @doc """
+  Build + sign a `tokenDissociate`. Required: `:account`, `:tokens`. The account
+  must sign (pass its key via `:signers` when it is not the operator).
+  """
+  @spec token_dissociate(keyword()) :: build_result()
+  def token_dissociate(opts) do
+    body = %Pb.TokenDissociateTransactionBody{
+      account: pb_account(fetch!(opts, :account)),
+      tokens: Enum.map(fetch!(opts, :tokens), &pb_token/1)
+    }
+
+    build(opts, {:tokenDissociate, body})
+  end
+
+  @doc "Build + sign a `tokenDeletion`. Required: `:token`. Needs the token's admin key."
+  @spec token_delete(keyword()) :: build_result()
+  def token_delete(opts),
+    do: build(opts, {:tokenDeletion, %Pb.TokenDeleteTransactionBody{token: pb_token(fetch!(opts, :token))}})
 
   # --- File Service -----------------------------------------------------------
 
@@ -493,8 +598,20 @@ defmodule Hedera.Transaction do
 
   # --- struct → Pb converters -------------------------------------------------
 
+  defp pb_account(nil), do: nil
+
   defp pb_account(%AccountId{shard: s, realm: r, num: n}),
     do: %Pb.AccountID{shardNum: s, realmNum: r, accountNum: n}
+
+  # Optional-field wrappers for update bodies: nil ⇒ field absent (unchanged).
+  defp pb_duration(nil), do: nil
+  defp pb_duration(seconds) when is_integer(seconds), do: %Pb.Duration{seconds: seconds}
+
+  defp pb_bool(nil), do: nil
+  defp pb_bool(value) when is_boolean(value), do: %Pb.BoolValue{value: value}
+
+  defp pb_string(nil), do: nil
+  defp pb_string(value) when is_binary(value), do: %Pb.StringValue{value: value}
 
   defp pb_topic(%TopicId{shard: s, realm: r, num: n}),
     do: %Pb.TopicID{shardNum: s, realmNum: r, topicNum: n}

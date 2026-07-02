@@ -1,7 +1,7 @@
 defmodule Hedera.ReceiptTest do
   use ExUnit.Case, async: true
 
-  alias Hedera.{ContractId, FileId, Proto, Receipt, ScheduleId, TokenId, TopicId}
+  alias Hedera.{AccountId, ContractId, FileId, Proto, Receipt, ScheduleId, TokenId, TopicId}
 
   test "parses status, topic id, sequence number and running hash" do
     bytes =
@@ -64,5 +64,13 @@ defmodule Hedera.ReceiptTest do
     bytes = Proto.varint_field(1, 22) <> Proto.bytes_field(4, contract_id)
 
     assert Receipt.parse(bytes).contract_id == %ContractId{shard: 0, realm: 0, num: 1234}
+  end
+
+  test "parses the new account id (field 2) returned by cryptoCreateAccount" do
+    bytes =
+      Proto.varint_field(1, 22) <>
+        Proto.bytes_field(2, AccountId.to_proto(%AccountId{shard: 0, realm: 0, num: 4242}))
+
+    assert Receipt.parse(bytes).account_id == %AccountId{shard: 0, realm: 0, num: 4242}
   end
 end

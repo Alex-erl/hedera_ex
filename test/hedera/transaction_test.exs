@@ -540,4 +540,108 @@ defmodule Hedera.TransactionTest do
     body = Proto.decode(Proto.field(decode_signed(tx), 1))
     assert is_binary(Proto.field(body, 24))
   end
+
+  # --- R3.4 breadth: account lifecycle + token update/dissociate/delete -------
+
+  defp base(key), do: [operator_id: AccountId.parse("0.0.1001"), operator_key: key, node_account_id: AccountId.parse("0.0.3")]
+
+  test "crypto_create encodes a cryptoCreateAccount body (field 11) with key + initial balance" do
+    key = PrivateKey.generate_ed25519()
+    new_key = PrivateKey.generate_ecdsa() |> PrivateKey.public_key()
+
+    %{transaction: tx} = Transaction.crypto_create(base(key) ++ [key: new_key, initial_balance: 500])
+
+    body = Proto.decode(Proto.field(decode_signed(tx), 1))
+    create = Proto.decode(Proto.field(body, 11))
+    # Key { ECDSASecp256k1 = 7 } holds the new account's public key
+    assert Proto.field(Proto.decode(Proto.field(create, 1)), 7) == PublicKey.to_bytes(new_key)
+    assert Proto.field(create, 2) == 500
+  end
+
+  test "crypto_create defaults the key to the operator's public key" do
+    key = PrivateKey.generate_ed25519()
+    %{transaction: tx} = Transaction.crypto_create(base(key))
+
+    create = Proto.decode(Proto.field(Proto.decode(Proto.field(decode_signed(tx), 1)), 11))
+    # ed25519 key sits in Key field 2
+    assert Proto.field(Proto.decode(Proto.field(create, 1)), 2) == PublicKey.to_bytes(PrivateKey.public_key(key))
+  end
+
+  test "crypto_update encodes a cryptoUpdateAccount body (field 15); only set fields are present" do
+    key = PrivateKey.generate_ed25519()
+    account = AccountId.parse("0.0.7777")
+
+    %{transaction: tx} = Transaction.crypto_update(base(key) ++ [account: account, account_memo: "renamed"])
+
+    update = Proto.decode(Proto.field(Proto.decode(Proto.field(decode_signed(tx), 1)), 15))
+    # accountIDToUpdate = 2
+    assert Proto.field(Proto.decode(Proto.field(update, 2)), 3) == 7777
+    # memo StringValue = 14 -> { value = 1 }
+    assert Proto.field(Proto.decode(Proto.field(update, 14)), 1) == "renamed"
+    # key (3) and autoRenewPeriod (7) were not passed → absent
+    assert Proto.field(update, 3) == nil
+    assert Proto.field(update, 7) == nil
+  end
+
+  test "crypto_delete encodes a cryptoDelete body (field 12) with delete + transfer accounts" do
+    key = PrivateKey.generate_ed25519()
+
+    %{transaction: tx} =
+      Transaction.crypto_delete(base(key) ++ [account: AccountId.parse("0.0.7777"), transfer_account: AccountId.parse("0.0.98")])
+
+    del = Proto.decode(Proto.field(Proto.decode(Proto.field(decode_signed(tx), 1)), 12))
+    assert Proto.field(Proto.decode(Proto.field(del, 2)), 3) == 7777
+    assert Proto.field(Proto.decode(Proto.field(del, 1)), 3) == 98
+  end
+
+  test "crypto_delete defaults the transfer account to the operator" do
+    key = PrivateKey.generate_ed25519()
+    %{transaction: tx} = Transaction.crypto_delete(base(key) ++ [account: AccountId.parse("0.0.7777")])
+
+    del = Proto.decode(Proto.field(Proto.decode(Proto.field(decode_signed(tx), 1)), 12))
+    assert Proto.field(Proto.decode(Proto.field(del, 1)), 3) == 1001
+  end
+
+  test "token_update encodes a tokenUpdate body (field 36) with name/symbol/admin key" do
+    key = PrivateKey.generate_ed25519()
+    admin = PrivateKey.generate_ed25519() |> PrivateKey.public_key()
+
+    %{transaction: tx} =
+      Transaction.token_update(base(key) ++ [token: TokenId.parse("0.0.5555"), name: "New Name", symbol: "NEW", admin_key: admin])
+
+    upd = Proto.decode(Proto.field(Proto.decode(Proto.field(decode_signed(tx), 1)), 36))
+    assert Proto.field(Proto.decode(Proto.field(upd, 1)), 3) == 5555
+    assert Proto.field(upd, 3) == "New Name"
+    assert Proto.field(upd, 2) == "NEW"
+    assert Proto.field(Proto.decode(Proto.field(upd, 5)), 2) == PublicKey.to_bytes(admin)
+  end
+
+  test "token_dissociate is a field-41 body listing every token, and supports multi-sig" do
+    operator_key = PrivateKey.generate_ed25519()
+    account_key = PrivateKey.generate_ecdsa()
+    account = AccountId.parse("0.0.7777")
+
+    %{transaction: tx} =
+      Transaction.token_dissociate(
+        base(operator_key) ++
+          [account: account, tokens: [TokenId.parse("0.0.10"), TokenId.parse("0.0.11")], signers: [account_key]]
+      )
+
+    sd = decode_signed(tx)
+    diss = Proto.decode(Proto.field(Proto.decode(Proto.field(sd, 1)), 41))
+    # account = 1, tokens = 2 (repeated)
+    assert Proto.field(Proto.decode(Proto.field(diss, 1)), 3) == 7777
+    tokens = for {2, _w, v} <- diss, do: Proto.field(Proto.decode(v), 3)
+    assert tokens == [10, 11]
+    # operator + account both sign
+    assert length(for {1, _w, v} <- Proto.decode(Proto.field(sd, 2)), do: v) == 2
+  end
+
+  test "token_delete encodes a tokenDeletion body (field 35)" do
+    key = PrivateKey.generate_ed25519()
+    %{transaction: tx} = Transaction.token_delete(base(key) ++ [token: TokenId.parse("0.0.5555")])
+
+    del = Proto.decode(Proto.field(Proto.decode(Proto.field(decode_signed(tx), 1)), 35))
+    assert Proto.field(Proto.decode(Proto.field(del, 1)), 3) == 5555
+  end
 end
