@@ -24,6 +24,9 @@ defmodule Hedera.Ethereum do
   `:nonce`, `:max_priority_fee_per_gas`, `:max_fee_per_gas`, `:gas_limit`, `:to`
   (a 20-byte address, `"0x…"` hex, or `nil`/absent for contract creation),
   `:value`, `:data` (call data, bytes or `"0x…"`). Access lists are empty.
+
+  Raises `ArgumentError` when a required gas field is missing/negative or a `:to`
+  address / `:data` hex string is malformed.
   """
   @spec sign_eip1559(map(), PrivateKey.t()) :: binary()
   def sign_eip1559(params, %PrivateKey{type: :ecdsa_secp256k1} = key) do

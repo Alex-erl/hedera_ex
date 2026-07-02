@@ -2,6 +2,24 @@ defmodule Hedera.IdentifiersTest do
   use ExUnit.Case, async: true
 
   alias Hedera.{AccountId, ContractId, FileId, ScheduleId, Timestamp, TokenId, TopicId}
+  doctest Hedera.Timestamp
+
+  describe "shared Hedera.Id parsing" do
+    test "every identifier module parses / formats / encodes identically" do
+      for mod <- [AccountId, ContractId, FileId, ScheduleId, TokenId, TopicId] do
+        id = mod.parse("1.2.345")
+        assert %{shard: 1, realm: 2, num: 345} = Map.take(id, [:shard, :realm, :num])
+        assert mod.to_string(id) == "1.2.345"
+        assert <<0x08, 1, 0x10, 2, 0x18, _::binary>> = mod.to_proto(id)
+      end
+    end
+
+    test "parse raises a clear ArgumentError on malformed ids" do
+      for bad <- ["nope", "0.0", "0.0.0.0", "0.0.x", "0.-1.2", ""] do
+        assert_raise ArgumentError, ~r/invalid id/, fn -> AccountId.parse(bad) end
+      end
+    end
+  end
 
   test "AccountId parses, formats, and encodes" do
     a = AccountId.parse("0.0.8260469")

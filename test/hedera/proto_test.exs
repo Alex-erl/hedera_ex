@@ -2,6 +2,7 @@ defmodule Hedera.ProtoTest do
   use ExUnit.Case, async: true
 
   alias Hedera.Proto
+  doctest Hedera.Proto
 
   test "varint encodes per the protobuf spec" do
     assert Proto.varint(0) == <<0>>

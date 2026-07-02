@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.8.0 — 2026-07-02
+
+### Review, refactor, guides, and test coverage
+
+Hardening and polish pass — no wire changes; behaviour is unchanged except where noted.
+
+- **DRY identifiers** — the six `shard.realm.num` id modules (`AccountId`,
+  `ContractId`, `FileId`, `ScheduleId`, `TokenId`, `TopicId`) now share one
+  implementation via `use Hedera.Id`. `parse/1` validates its input and raises a
+  **clear `ArgumentError`** on a malformed id (was a cryptic `MatchError`).
+- **Crypto robustness** — `Secp256k1.der_to_raw/1` raises a descriptive error on
+  non-DER input; `recover/4` returns `:error` (never the point at infinity);
+  `pad32` can't crash on an oversized integer.
+- **`PublicKey.verify/3`** returns `false` for a wrong-size/malformed signature
+  instead of raising.
+- **Secret redaction** — `%Hedera.PrivateKey{}` now has an `Inspect` impl that
+  prints `#Hedera.PrivateKey<type [redacted]>`, so keys can't leak via
+  `inspect`/`Logger`/crash dumps.
+- **`Proto.decode/1`** raises a clear error on an unsupported wire type rather
+  than a `CaseClauseError`; defensive clauses added to `Transaction` key encoders.
+- **Removed** the unused `PublicKey.to_key_proto/1` (superseded by the generated
+  `Pb.Key`).
+- **Docs** — five ExDoc guides (getting started, transactions, queries, Ethereum,
+  cryptography), grouped module reference, and doctests on `Rlp`, `Proto`,
+  `Timestamp`. Runnable `examples/` (incl. an offline EIP-1559 signer).
+- **Tests** — 93 offline (9 doctests + 84 tests), up from 74: identifier parse
+  errors, secp256k1 der/low-S/compress/recover edge cases, verify robustness,
+  key redaction.
+
 ## 0.7.0 — 2026-07-02
 
 ### Read-only contract calls + token fee-schedule update
@@ -188,8 +217,9 @@ The cryptographic and encoding foundation, fully unit-tested offline:
 - **Tokens** — `Hedera.Transaction` gains `token_create/1`, `token_mint/1`, `token_burn/1` and
   `token_associate/1`; `crypto_transfer/1` now also carries `:token_transfers`. `Hedera.Client`
   gains `create_token/2`, `mint_token/4`, `burn_token/4`, `associate_token/4`, `transfer_token/4`.
-  New `Hedera.TokenId`; `Hedera.PublicKey.to_key_proto/1` encodes a `Key` message (Ed25519 in
-  field 2, ECDSA secp256k1 in field 7); `Hedera.Receipt` now parses `token_id` and
+  New `Hedera.TokenId`; a `PublicKey.to_key_proto` helper encodes a `Key` message (Ed25519 in
+  field 2, ECDSA secp256k1 in field 7) — removed in 0.8.0, superseded by the generated `Pb.Key`;
+  `Hedera.Receipt` now parses `token_id` and
   `new_total_supply`.
 - **Multi-signature** — transaction building accepts `:signers` (extra keys beyond the operator);
   the signature map carries one `SignaturePair` per distinct key, so e.g. a token association can

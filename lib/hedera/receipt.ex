@@ -82,7 +82,12 @@ defmodule Hedera.Receipt do
   defp from_contract(nil), do: nil
 
   defp from_contract(pb) do
-    num = with {:contractNum, n} <- pb.contract, do: n, else: (_ -> nil)
+    num =
+      case pb.contract do
+        {:contractNum, n} -> n
+        _ -> nil
+      end
+
     %ContractId{shard: pb.shardNum, realm: pb.realmNum, num: num}
   end
 end

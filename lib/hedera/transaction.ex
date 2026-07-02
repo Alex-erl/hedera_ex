@@ -622,6 +622,7 @@ defmodule Hedera.Transaction do
   # SignaturePair.signature oneof
   defp signature_oneof(%PublicKey{type: :ed25519}, sig), do: {:ed25519, sig}
   defp signature_oneof(%PublicKey{type: :ecdsa_secp256k1}, sig), do: {:ECDSASecp256k1, sig}
+  defp signature_oneof(%PublicKey{type: t}, _sig), do: raise(ArgumentError, "unsupported key type #{inspect(t)}")
 
   # --- CryptoTransferTransactionBody (reused by scheduling) -------------------
 
@@ -641,7 +642,7 @@ defmodule Hedera.Transaction do
       end)
 
     %Pb.CryptoTransferTransactionBody{
-      transfers: hbar != [] && %Pb.TransferList{accountAmounts: account_amounts(hbar)} || nil,
+      transfers: if(hbar == [], do: nil, else: %Pb.TransferList{accountAmounts: account_amounts(hbar)}),
       tokenTransfers: fungible ++ nfts
     }
   end
@@ -724,6 +725,7 @@ defmodule Hedera.Transaction do
   defp pb_key(nil), do: nil
   defp pb_key(%PublicKey{type: :ed25519} = key), do: %Pb.Key{key: {:ed25519, PublicKey.to_bytes(key)}}
   defp pb_key(%PublicKey{type: :ecdsa_secp256k1} = key), do: %Pb.Key{key: {:ECDSASecp256k1, PublicKey.to_bytes(key)}}
+  defp pb_key(%PublicKey{type: t}), do: raise(ArgumentError, "unsupported key type #{inspect(t)}")
 
   defp token_type(:fungible), do: :FUNGIBLE_COMMON
   defp token_type(:nft), do: :NON_FUNGIBLE_UNIQUE

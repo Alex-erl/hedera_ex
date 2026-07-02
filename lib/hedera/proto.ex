@@ -7,7 +7,17 @@ defmodule Hedera.Proto do
   """
   import Bitwise
 
-  @doc "Encode a non-negative integer as a base-128 varint."
+  @doc """
+  Encode a non-negative integer as a base-128 varint.
+
+  ## Examples
+
+      iex> Hedera.Proto.varint(300)
+      <<0xAC, 0x02>>
+
+      iex> Hedera.Proto.varint(0)
+      <<0x00>>
+  """
   @spec varint(non_neg_integer()) :: binary()
   def varint(n) when n >= 0 and n < 0x80, do: <<n>>
   def varint(n) when n >= 0, do: <<bor(0x80, band(n, 0x7F))>> <> varint(n >>> 7)
@@ -20,7 +30,17 @@ defmodule Hedera.Proto do
   @spec varint_field(non_neg_integer(), non_neg_integer()) :: binary()
   def varint_field(field, value), do: tag(field, 0) <> varint(value)
 
-  @doc "Encode a signed `sint64` (ZigZag) field — used e.g. for transfer amounts."
+  @doc """
+  Encode a signed `sint64` (ZigZag) field — used e.g. for transfer amounts.
+
+  ## Examples
+
+      iex> Hedera.Proto.sint64_field(2, -1)
+      <<0x10, 0x01>>
+
+      iex> Hedera.Proto.sint64_field(2, 1)
+      <<0x10, 0x02>>
+  """
   @spec sint64_field(non_neg_integer(), integer()) :: binary()
   def sint64_field(field, value), do: tag(field, 0) <> varint(zigzag(value))
 
@@ -48,6 +68,8 @@ defmodule Hedera.Proto do
   @spec field([{non_neg_integer(), 0..5, term()}], non_neg_integer()) ::
           integer() | binary() | nil
   def field(decoded, field) do
+    # decoded values are always integers or binaries (both truthy, incl. 0 and
+    # ""), so find_value's falsy-skip can't swallow a real value here.
     Enum.find_value(decoded, fn
       {^field, _wire, value} -> value
       _ -> false
@@ -78,6 +100,9 @@ defmodule Hedera.Proto do
         2 -> take_bytes(rest)
         1 -> take_fixed(rest, 8)
         5 -> take_fixed(rest, 4)
+        # wire types 3/4 are deprecated groups the SDK never emits; a corrupt
+        # tag lands here too. Fail loudly rather than mis-parse the rest.
+        other -> raise ArgumentError, "unsupported protobuf wire type #{other} at field #{field}"
       end
 
     decode(rest2, [{field, wire, value} | acc])

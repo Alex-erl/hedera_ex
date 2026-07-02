@@ -8,7 +8,14 @@ defmodule Hedera.Timestamp do
 
   @type t :: %__MODULE__{seconds: integer(), nanos: non_neg_integer()}
 
-  @doc "Format as Hedera's `seconds.nanos` (9-digit nanos)."
+  @doc ~S"""
+  Format as Hedera's `seconds.nanos` (9-digit nanos).
+
+  ## Examples
+
+      iex> Hedera.Timestamp.to_string(%Hedera.Timestamp{seconds: 1_700_000_000, nanos: 42})
+      "1700000000.000000042"
+  """
   @spec to_string(t()) :: binary()
   def to_string(%__MODULE__{seconds: s, nanos: n}) do
     "#{s}.#{n |> Integer.to_string() |> String.pad_leading(9, "0")}"

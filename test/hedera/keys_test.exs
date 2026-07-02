@@ -48,4 +48,21 @@ defmodule Hedera.KeysTest do
       assert :binary.first(wire) in [0x02, 0x03]
     end
   end
+
+  describe "verify robustness + secret redaction" do
+    test "a wrong-size signature returns false instead of raising" do
+      for gen <- [&PrivateKey.generate_ed25519/0, &PrivateKey.generate_ecdsa/0] do
+        pub = gen.() |> PrivateKey.public_key()
+        refute PublicKey.verify(pub, @msg, <<1, 2, 3>>)
+        refute PublicKey.verify(pub, @msg, <<>>)
+      end
+    end
+
+    test "inspecting a private key never reveals the secret bytes" do
+      key = PrivateKey.generate_ecdsa()
+      dumped = inspect(key)
+      assert dumped =~ "[redacted]"
+      refute dumped =~ Base.encode16(key.bytes, case: :lower)
+    end
+  end
 end

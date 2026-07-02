@@ -27,6 +27,9 @@ defmodule Hedera.Crypto.Secp256k1 do
     pad32(r_int) <> pad32(s_int)
   end
 
+  def der_to_raw(other) when is_binary(other),
+    do: raise(ArgumentError, "not a canonical secp256k1 DER signature: #{inspect(other, limit: 8)}")
+
   @doc "Convert a canonical 64-byte `r ‖ s` signature to DER."
   @spec raw_to_der(binary()) :: binary()
   def raw_to_der(<<r::binary-size(32), s::binary-size(32)>>) do
@@ -83,7 +86,11 @@ defmodule Hedera.Crypto.Secp256k1 do
       s_r = mul(s, big_r)
       z_g = mul(mod(z, @n), {@gx, @gy})
       diff = add(s_r, negate(z_g))
-      mul(r_inv, diff)
+
+      case mul(r_inv, diff) do
+        {_x, _y} = point -> point
+        :infinity -> :error
+      end
     end
   end
 
@@ -145,7 +152,7 @@ defmodule Hedera.Crypto.Secp256k1 do
 
   defp pad32(int) do
     bytes = :binary.encode_unsigned(int)
-    :binary.copy(<<0>>, 32 - byte_size(bytes)) <> bytes
+    :binary.copy(<<0>>, max(0, 32 - byte_size(bytes))) <> bytes
   end
 
   # DER INTEGER: big-endian, minimal, with a 0x00 sign byte when the MSB is set.

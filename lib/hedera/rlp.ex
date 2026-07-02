@@ -7,7 +7,23 @@ defmodule Hedera.Rlp do
   empty string), binaries (raw byte strings), or (nested) lists of items.
   """
 
-  @doc "RLP-encode an item: an integer, a binary, or a (nested) list."
+  @doc """
+  RLP-encode an item: an integer, a binary, or a (nested) list.
+
+  ## Examples
+
+      iex> Hedera.Rlp.encode("dog")
+      <<0x83, ?d, ?o, ?g>>
+
+      iex> Hedera.Rlp.encode(1024)
+      <<0x82, 0x04, 0x00>>
+
+      iex> Hedera.Rlp.encode(0)
+      <<0x80>>
+
+      iex> Hedera.Rlp.encode(["cat", "dog"])
+      <<0xC8, 0x83, ?c, ?a, ?t, 0x83, ?d, ?o, ?g>>
+  """
   @spec encode(integer() | binary() | list()) :: binary()
   def encode(item) when is_integer(item) and item >= 0, do: encode(int_to_bin(item))
 

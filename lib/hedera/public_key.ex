@@ -6,17 +6,21 @@ defmodule Hedera.PublicKey do
   """
 
   alias Hedera.Crypto.{Keccak, Secp256k1}
-  alias Hedera.Proto
 
   @enforce_keys [:type, :point]
   defstruct [:type, :point]
 
   @type t :: %__MODULE__{type: Hedera.PrivateKey.key_type(), point: binary()}
 
-  @doc "Verify a signature produced by the matching private key."
+  @doc """
+  Verify a signature produced by the matching private key. Returns `false` for a
+  malformed or wrong-size signature rather than raising.
+  """
   @spec verify(t(), binary(), binary()) :: boolean()
   def verify(%__MODULE__{type: :ed25519, point: pub}, message, signature) do
     :crypto.verify(:eddsa, :none, message, signature, [pub, :ed25519])
+  rescue
+    _ -> false
   end
 
   def verify(%__MODULE__{type: :ecdsa_secp256k1, point: pub}, message, signature)
@@ -27,6 +31,9 @@ defmodule Hedera.PublicKey do
   rescue
     _ -> false
   end
+
+  # wrong-size ECDSA signature (or anything else) → not valid, never a crash
+  def verify(%__MODULE__{}, _message, _signature), do: false
 
   @doc """
   Raw public-key bytes in Hedera wire form: Ed25519 → 32 bytes; ECDSA → 33-byte
@@ -39,15 +46,4 @@ defmodule Hedera.PublicKey do
   @doc "Lowercase hex of the wire-form public key."
   @spec to_string(t()) :: binary()
   def to_string(%__MODULE__{} = key), do: key |> to_bytes() |> Base.encode16(case: :lower)
-
-  @doc """
-  Encode as a Hedera `Key` protobuf message: Ed25519 in field 2, ECDSA
-  secp256k1 (compressed) in field 7. Used wherever a transaction body expects a
-  `Key` (admin/supply/kyc/freeze/wipe keys, etc.).
-  """
-  @spec to_key_proto(t()) :: binary()
-  def to_key_proto(%__MODULE__{type: :ed25519} = key), do: Proto.bytes_field(2, to_bytes(key))
-
-  def to_key_proto(%__MODULE__{type: :ecdsa_secp256k1} = key),
-    do: Proto.bytes_field(7, to_bytes(key))
 end

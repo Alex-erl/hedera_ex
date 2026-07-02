@@ -72,4 +72,11 @@ defmodule Hedera.PrivateKey do
 
   defp pad32(bytes) when byte_size(bytes) == 32, do: bytes
   defp pad32(bytes), do: :binary.copy(<<0>>, 32 - byte_size(bytes)) <> bytes
+
+  # Redact the secret so it never leaks through inspect/Logger/crash dumps.
+  defimpl Inspect do
+    def inspect(%Hedera.PrivateKey{type: type}, _opts),
+      do: "#Hedera.PrivateKey<#{type} [redacted]>"
+  end
 end
+

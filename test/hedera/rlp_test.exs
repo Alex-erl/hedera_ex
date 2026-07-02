@@ -3,6 +3,7 @@ defmodule Hedera.RlpTest do
   use ExUnit.Case, async: true
 
   alias Hedera.Rlp
+  doctest Hedera.Rlp
 
   test "byte-string vectors" do
     assert Rlp.encode("dog") == <<0x83, ?d, ?o, ?g>>

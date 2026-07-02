@@ -1,7 +1,7 @@
 defmodule Hedera.MixProject do
   use Mix.Project
 
-  @version "0.7.0"
+  @version "0.8.0"
   @source_url "https://github.com/Alex-erl/hedera_ex"
 
   def project do
@@ -33,8 +33,10 @@ defmodule Hedera.MixProject do
   end
 
   defp description do
-    "A native Elixir SDK for the Hedera network: keys (Ed25519 / ECDSA secp256k1), " <>
-      "identifiers, protobuf encoding, gRPC, and Consensus + Crypto Service support."
+    "A native Elixir SDK for the Hedera network: Ed25519 / ECDSA secp256k1 keys, " <>
+      "gRPC over HTTP/2, and the Consensus, Crypto (incl. accounts), Token (HTS), " <>
+      "File, Schedule and Smart Contract services — plus EIP-1559 Ethereum transactions " <>
+      "and free/paid queries."
   end
 
   defp package do
@@ -42,11 +44,50 @@ defmodule Hedera.MixProject do
       licenses: ["MIT"],
       links: %{"GitHub" => @source_url},
       maintainers: ["asv"],
-      files: ~w(lib priv mix.exs README.md LICENSE CHANGELOG.md)
+      files: ~w(lib priv guides mix.exs README.md LICENSE CHANGELOG.md)
     ]
   end
 
   defp docs do
-    [main: "readme", extras: ["README.md", "CHANGELOG.md", "LICENSE"]]
+    [
+      main: "readme",
+      extras: [
+        "README.md",
+        "guides/getting_started.md",
+        "guides/transactions.md",
+        "guides/queries.md",
+        "guides/ethereum.md",
+        "guides/cryptography.md",
+        "CHANGELOG.md",
+        "LICENSE"
+      ],
+      groups_for_extras: [
+        Guides: ~r{guides/.*}
+      ],
+      groups_for_modules: [
+        "Client & transactions": [Hedera.Client, Hedera.Transaction, Hedera.Receipt],
+        "Keys & cryptography": [
+          Hedera.PrivateKey,
+          Hedera.PublicKey,
+          Hedera.Ethereum,
+          Hedera.Rlp,
+          Hedera.Crypto.Keccak,
+          Hedera.Crypto.Secp256k1
+        ],
+        Identifiers: [
+          Hedera.Id,
+          Hedera.AccountId,
+          Hedera.ContractId,
+          Hedera.FileId,
+          Hedera.ScheduleId,
+          Hedera.TokenId,
+          Hedera.TopicId,
+          Hedera.TransactionId,
+          Hedera.Timestamp,
+          Hedera.Duration
+        ],
+        "Wire & network": [Hedera.Proto, Hedera.Grpc, Hedera.Network, Hedera.MirrorNode]
+      ]
+    ]
   end
 end
